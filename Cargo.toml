@@ -1,0 +1,27 @@
+[package]
+name = "geometry_kernel"
+version = "0.1.0"
+authors = ["Euegene <AsadiR.KEV@gmail.com>"]
+
+[lib]
+name = "geometry_kernel"
+path = "src/lib.rs"
+
+[[bin]]
+name = "geometry_kernel_main"
+path = "src/main.rs"
+
+# Профиль dev используется по умолчанию при вызове команды cargo build
+[profile.dev]
+debug = true  # Добавляет флаг `-g` для компилятора;
+opt-level = 0 # Отключаем оптимизацию кода;
+
+[dependencies]
+num = "0.1.39"
+time = "*"
+lazy_static = "*"
+bidir-map = "0.3.2"
+byteorder = "*"
+log = "*"
+rustc-test = "0.2.0"
+env_logger = "*"
