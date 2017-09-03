@@ -6,8 +6,10 @@ use primitives::vector;
 use primitives::number;
 use std::cmp::Ordering;
 use std::f64::consts::PI;
-use std::f64;
 use std::mem::swap;
+use log::LogLevel;
+use primitives::number::NumberTrait;
+use primitives::signed_trait::Signed;
 
 #[derive(Clone)]
 #[derive(Hash)]
@@ -19,7 +21,7 @@ pub struct Point {
 
 impl fmt::Debug for Point {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Point [{:?}, {:?}, {:?}]", number::to_f32(self.x.clone()), number::to_f32(self.y.clone()), number::to_f32(self.z.clone()))
+        write!(f, "Point [{:?}, {:?}, {:?}]", self.x.clone().to_f32(), self.y.clone().to_f32(), self.z.clone().to_f32())
     }
 }
 
@@ -64,46 +66,40 @@ impl Point {
         swap(&mut self.x, &mut self.z);
     }
 
-    /*
+
     pub fn classify(&self, p0 : &Point, p1 : &Point) -> EPointPosition {
         let a = p1 - p0;
         let b = self - p0;
-        let sa = a.x*b.y - b.x*a.y;
+        let sa = &a.x*&b.y - &b.x*&a.y;
         match 1 {
-            _ if sa > EPS => return EPointPosition::Left,
-            _ if sa < -EPS => return EPointPosition::Right,
-            _ if (a.x * b.x < 0.0) | (a.y * b.y < 0.0) => return EPointPosition::Behind,
-            _ if a.length() < b.length() => return EPointPosition::Beyond,
+            _ if sa.is_it_positive() => return EPointPosition::Left,
+            _ if sa.is_it_negative() => return EPointPosition::Right,
+            _ if (&a.x * &b.x).is_it_negative() | (&a.y * &b.y).is_it_negative() =>
+                return EPointPosition::Behind,
+            _ if a.length2() < b.length2() => return EPointPosition::Beyond,
             _ if *p0 == *self => return EPointPosition::Org,
             _ if *p1 == *self => return EPointPosition::Dest,
             _ => return EPointPosition::Between
         }
     }
 
-
-    pub fn rotate_around_axis(&mut self, point_on_axis : &Point, axis_dir : &Vector, angle : f64) {
-        /*
-        Point r = v - PointOnAxis;
-        return PointOnAxis + cos(RadFromDeg(Angle)) * r
-            + ((1 - cos(RadFromDeg(Angle))) * AxisDir.dotProduct3D(r)) * AxisDir
-            + sin(RadFromDeg(Angle)) * AxisDir.crossProduct(r);
-        */
-        assert!(f64::abs(axis_dir.length() - 1.) <= EPS, "AxisDir must be unit vector");
+    pub fn rotate_around_axis_90(&mut self, point_on_axis : &Point, axis_dir : &vector::Vector) {
+        //assert!(f64::abs(axis_dir.length() - 1.) <= EPS, "AxisDir must be unit vector");
 
         let res : Point;
         {
             let v: &Point = self;
 
-            let r: Vector = v - point_on_axis;
-            let part1: Point = point_on_axis + &(&r * rad_from_deg(angle).cos());
-            let part2: f64 = axis_dir.dot_product(&r) * (1. - rad_from_deg(angle).cos());
-            let part3: Vector = (&axis_dir.cross_product(&r)) * rad_from_deg(angle).sin();
-            res = &(&part1 + &(axis_dir * part2)) + &part3;
+            let r: vector::Vector = v - point_on_axis;
+            let part1 : Point = point_on_axis.clone();
+            let part2: number::Number = axis_dir.dot_product(&r);
+            let part3: vector::Vector = axis_dir.cross_product(&r);
+            res = (part1 + axis_dir * part2) + part3;
         }
         *self = res
 
     }
-    */
+
 
 }
 
@@ -123,7 +119,7 @@ impl Add<vector::Vector> for Point {
 impl Sub<Point> for Point {
     type Output = vector::Vector;
     fn sub(self, other: Point) -> vector::Vector {
-        vector::Vector { x: other.x - self.x, y: other.y - self.y, z: other.z - self.z}
+        vector::Vector { x: self.x - other.x, y: self.y - other.y, z: self.z - other.z}
     }
 }
 
@@ -139,7 +135,7 @@ impl<'a,'b> Sub<&'b Point> for &'a Point {
     type Output = vector::Vector;
 
     fn sub(self, other: &'b Point) -> vector::Vector {
-        vector::Vector { x: &other.x - &self.x, y: &other.y - &self.y, z: &other.z - &self.z}
+        vector::Vector { x: &self.x - &other.x, y: &self.y - &other.y, z: &self.z - &other.z}
     }
 }
 
@@ -197,7 +193,7 @@ mod tests {
         let begin = point::Point {x: number::new(2.0), y: number::new(2.0), z: number::new(2.0)};
         let v = end.clone() - begin.clone();
         let new_v = end - begin;
-        let expected_v = vector::Vector {x: number::new(1.0), y: number::new(1.0), z: number::new(1.0)};
+        let expected_v = vector::Vector {x: number::new(-1.0), y: number::new(-1.0), z: number::new(-1.0)};
         assert!(v == new_v);
         assert!(v == expected_v);
     }

@@ -4,12 +4,13 @@ use std::ops::Mul;
 use std::fmt;
 use primitives::point;
 use primitives::number;
+use primitives::number::NumberTrait;
 use std::f64;
 //use core::num::Float;
 //use std::num::Float;
 
 
-
+#[derive(Hash)]
 #[derive(Clone)]
 pub struct Vector {
     pub x: number::Number,
@@ -19,7 +20,7 @@ pub struct Vector {
 
 impl fmt::Debug for Vector {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Point [{:?}, {:?}, {:?}]", number::to_f32(self.x.clone()), number::to_f32(self.y.clone()), number::to_f32(self.z.clone()))
+        write!(f, "Point [{:?}, {:?}, {:?}]", self.x.clone().to_f32(), self.y.clone().to_f32(), self.z.clone().to_f32())
     }
 }
 
@@ -63,18 +64,22 @@ impl Vector {
         Vector {x:x, y:y, z:z}
     }
 
-    pub fn length(&self) -> number::Number {
-        // sqrt!!!
-        //(self.x*self.x + self.y*self.y + self.z*self.z).sqrt()
+    pub fn new_from_f64(x : f64, y : f64, z : f64) -> Vector {
+        Vector {x: number::new(x), y: number::new(y), z: number::new(z)}
+    }
+
+    pub fn length2(&self) -> number::Number {
         &self.x*&self.x + &self.y*&self.y + &self.z*&self.z
     }
 
+    /*
     pub fn normalize(&mut self) {
         let l = self.length();
         self.x = &self.x / &l;
         self.y = &self.y / &l;
         self.z = &self.z / &l;
     }
+    */
 }
 
 impl PartialEq for Vector {
@@ -93,6 +98,14 @@ impl Add<Vector> for Vector {
     }
 }
 
+impl<'a,'b> Add<&'b Vector> for &'a Vector {
+    type Output = Vector;
+
+    fn add(self, other: &Vector) -> Vector {
+        Vector { x: &self.x + &other.x, y: &self.y + &other.y, z: &self.z + &other.z }
+    }
+}
+
 impl Sub<Vector> for Vector {
     type Output = Vector;
 
@@ -106,6 +119,14 @@ impl Mul<number::Number> for Vector {
 
     fn mul(self, other: number::Number) -> Vector {
         Vector { x: self.x*&other, y: self.y*&other, z: self.z*&other }
+    }
+}
+
+impl<'a> Mul<number::Number> for &'a Vector {
+    type Output = Vector;
+
+    fn mul(self, other: number::Number) -> Vector {
+        Vector { x: &self.x*&other, y: &self.y*&other, z: &self.z*&other }
     }
 }
 

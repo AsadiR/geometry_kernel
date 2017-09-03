@@ -1,10 +1,11 @@
+
+use num;
 use num::FromPrimitive;
 use num::ToPrimitive;
 use num::bigint::BigInt;
 use num::rational::{Ratio, BigRational, Rational64};
 use time::PreciseTime;
-
-
+use std::default::Default;
 
 pub type Number = BigRational;
 
@@ -13,16 +14,30 @@ pub fn new(x : f64) -> Number
     BigRational::from_float(x).unwrap()
 }
 
+pub fn zero() -> Number {
+    num::zero()
+}
+
 pub fn new_from_f32(x : f32) -> Number
 {
     let res = BigRational::from_float(x).unwrap();
     return res
 }
 
-pub fn to_f32(x : Number) -> f32 {
-    (x.numer().to_f32().unwrap() / x.denom().to_f32().unwrap())
+pub trait NumberTrait {
+    fn to_f32(self) -> f32;
+    fn abs(self) -> Number;
 }
 
+impl NumberTrait for Number {
+    fn to_f32(self) -> f32 {
+        (self.numer().to_f32().unwrap() / self.denom().to_f32().unwrap())
+    }
+
+    fn abs(self) -> Number {
+        num::abs(self)
+    }
+}
 
 
 
