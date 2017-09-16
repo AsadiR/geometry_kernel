@@ -7,44 +7,95 @@ use primitives::signed_trait::Signed;
 use primitives::segment::Segment;
 use std::collections::BTreeSet;
 
+/// This structure represents a triangle in 3D space.
 #[derive(Debug)]
 pub struct Triangle {
-    pub points : Vec<Point>
+    points : Vec<Point>,
+    normal : Option<Vector>
 }
 
 
 impl Triangle {
+    /// This method creates `Triangle` from a `Vec` of points and calculates a normal using `points`.
+    /// # Arguments
+    ///
+    /// * `points` - A `Vec<Point>` to create the triangle.
     pub fn new(points : Vec<Point>) -> Triangle {
-        Triangle {
-            points : points
-        }
+        let mut t  = Triangle {
+            points : points,
+            normal : None
+        };
+        let v1 = t.get_ref(0) - t.get_ref(1);
+        let v2 = t.get_ref(1) - t.get_ref(2);
+        let n = v1.cross_product(&v2);
+        t.normal = Some(n);
+        return t;
     }
 
+    /// This method creates `Triangle` from a `Vec` of points.
+    /// # Arguments
+    ///
+    /// * `points` - A `Vec<Point>' to create the triangle.
+    /// * `normal` - A normal vector.
+    pub fn new_with_normal(points : Vec<Point>, normal : Vector) -> Triangle {
+        let mut t  = Triangle {
+            points : points,
+            normal : Some(normal)
+        };
+        return t;
+    }
+
+    /// This method returns the reference to the `Vec<Point>`, containing the triangle points.
+    pub fn get_points_ref(&self) -> &Vec<Point> {
+        return &self.points;
+    }
+
+    /// This method returns the reference to the `Vec<Point>`, containing the triangle points.
+    pub fn get_points(self) -> Vec<Point> {
+        return self.points;
+    }
+
+    /// This method returns the copy of the point, specified by `index`.
+    /// # Arguments
+    ///
+    /// * `index` - An index of the point. It has to be less than 3.
     pub fn get(&self, index : usize) -> Point {
         self.points[index].clone()
     }
 
+    /// This method returns the reference to the point, specified by `index`.
+    /// # Arguments
+    ///
+    /// * `index` - An index of the point. It has to be less than 3.
     pub fn get_ref(&self, index : usize) -> &Point {
         &self.points[index]
     }
 
-    pub fn gen_plane(&self) -> Plane {
-        let mut p = Plane {
+    pub(crate) fn gen_plane(&self) -> Plane {
+        let mut p = Plane::new(
             // check it!
-            normal : (self.get_ref(0) - self.get_ref(1)).cross_product(&(self.get_ref(1) - self.get_ref(2))),
-            point : self.get_ref(0).clone()
-        };
+            (self.get_ref(0) - self.get_ref(1)).cross_product(&(self.get_ref(1) - self.get_ref(2))),
+            self.get_ref(0).clone()
+        );
         // p.normal.normalize();
         return p;
     }
 
+    /// This method returns a copy of the normal `Vector`.
     pub fn get_normal(&self) -> Vector {
-        let v1 = self.get_ref(0) - self.get_ref(1);
-        let v2 = self.get_ref(1) - self.get_ref(2);
-        v1.cross_product(&v2)
+        if self.normal.is_some() {
+            return self.normal.clone().unwrap();
+        } else {
+            panic!("Something goes wrong!");
+        }
     }
 
-    pub fn does_triangle_contain_point(&self, p : &Point) -> bool {
+    pub(crate) fn reverse(&mut self) {
+        self.points.swap(0, 1);
+        self.normal = Some(self.normal.clone().unwrap() * number::new(-1.));
+    }
+
+    pub(crate) fn does_triangle_contain_point(&self, p : &Point) -> bool {
         // http://blackpawn.com/texts/pointinpoly/
 
         let v0 = self.get_ref(2) - self.get_ref(0);
@@ -82,12 +133,11 @@ impl Triangle {
             (u + v <= number::new(1.))
     }
 
+    /// This method checks the triangle and returns:
+    /// 0 - if it's common triangle (there are zero coincident points).
+    /// 1 - if it's a segment (there are two coincident points).
+    /// 2 - is it's a point (there are three coincident points).
     pub fn degradation_level(&self) -> u64 {
-        /*
-        0 - it's good a triangle.
-        1 - it's a segment
-        2 - it's a point
-        */
         if self.points[0] == self.points[1] && self.points[1] == self.points[2] {
             return 2;
         }
@@ -101,7 +151,7 @@ impl Triangle {
     }
 
 
-    pub fn get_sides(&self) -> Vec<Segment> {
+    pub(crate) fn get_sides(&self) -> Vec<Segment> {
         let s1 = Segment::new(self.get(0), self.get(1));
         let s2 = Segment::new(self.get(1), self.get(2));
         let s3 = Segment::new(self.get(2), self.get(0));

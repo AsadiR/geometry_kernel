@@ -5,6 +5,7 @@ use primitives::point;
 use primitives::vector;
 use primitives::number;
 use primitives::number::NumberTrait;
+use primitives::Plane;
 
 use bidir_map::BidirMap;
 use std::collections::BTreeMap;
@@ -23,7 +24,7 @@ use primitives::triangle::Triangle;
 #[derive(Hash)]
 #[derive(Clone)]
 #[derive(Debug)]
-pub struct MeshTriangle {
+pub(crate) struct MeshTriangle {
     pub normal: vector::Vector,
     // Indexes of PointS in this triangle
     pub ips : Vec<usize>,
@@ -34,11 +35,9 @@ pub struct MeshTriangle {
 
 
 impl MeshTriangle {
-    fn new(ps : &Vec<point::Point>) -> MeshTriangle {
-        let v1 : vector::Vector = &ps[0] - &ps[1];
-        let v2 : vector::Vector = &ps[1] - &ps[2];
+    fn new(ps : &Vec<point::Point>, normal: vector::Vector) -> MeshTriangle {
         MeshTriangle {
-            normal: v1.cross_product(&v2),
+            normal: normal,
             ips: Vec::new(),
             attr_byte_count: 0,
             ins: Vec::new()
@@ -65,9 +64,11 @@ impl PartialEq for MeshTriangle {
 
 impl Eq for MeshTriangle {}
 
+
+/// It is an alias for BinaryStlFile
 pub type Mesh = BinaryStlFile;
 
-pub struct BinaryStlHeader {
+struct BinaryStlHeader {
     pub header: [u8; 80],
     pub num_triangles: u32
 }
@@ -89,13 +90,15 @@ impl fmt::Debug for BinaryStlHeader {
     }
 }
 
+
+/// This class represents a geometry topology of polygonal mesh.
 #[derive(Clone)]
 #[derive(Debug)]
 pub struct BinaryStlFile {
-    pub header: BinaryStlHeader,
-    pub triangles: HashMap<usize, MeshTriangle>,
-    pub ip_to_p: HashMap<usize, point::Point>,
-    pub p_to_ip: HashMap<point::Point, usize>,
+    header: BinaryStlHeader,
+    triangles: HashMap<usize, MeshTriangle>,
+    ip_to_p: HashMap<usize, point::Point>,
+    p_to_ip: HashMap<point::Point, usize>,
     // pub points: BidirMap<usize, point::Point>,
     ip_to_its: BTreeMap<usize, Vec<usize>>,
     max_tr_index: usize
@@ -103,6 +106,9 @@ pub struct BinaryStlFile {
 
 
 impl BinaryStlFile {
+
+
+    /// This method returns a new empty BinaryStlFile
     pub fn new() -> BinaryStlFile {
         BinaryStlFile {
             header: BinaryStlHeader { header: [0u8; 80], num_triangles: 0 },
@@ -114,10 +120,20 @@ impl BinaryStlFile {
         }
     }
 
-    pub fn size(&self) -> usize {
+    /// This method returns a number of unique points, used in the file.
+    pub fn num_of_points(&self) -> usize {
         return self.ip_to_p.keys().len();
     }
 
+    /// This method returns a number of triangles.
+    pub fn num_of_triangles(&self) -> usize {
+        return self.triangles.len();
+    }
+
+    /// This method adds a triangle to the topology.
+    /// # Arguments
+    ///
+    /// * `tr` - A triangle to add
     pub fn add_triangle(&mut self, tr : Triangle) -> usize {
         if tr.degradation_level() != 0
         {
@@ -125,11 +141,12 @@ impl BinaryStlFile {
             //return
         }
 
-        let ps = tr.points;
+        let normal = tr.get_normal();
+        let ps = tr.get_points();
 
         debug!("add_triangle: {:?}", ps);
 
-        let mut m_tr = MeshTriangle::new(&ps);
+        let mut m_tr = MeshTriangle::new(&ps, normal);
 
         let it : usize = self.max_tr_index.clone();
         self.max_tr_index += 1;
@@ -161,6 +178,10 @@ impl BinaryStlFile {
         return it;
     }
 
+    /// This method adds each triangle from a vector of triangles to the topology.
+    /// # Arguments
+    ///
+    /// * `ts` - A vector of triangles
     pub fn add_triangles(&mut self, ts : Vec<Triangle>) {
         for t in ts {
             self.add_triangle(t);
@@ -189,22 +210,34 @@ impl BinaryStlFile {
         let attr_count = input.read_u16::<LittleEndian>()?;
 
 
+        //self.add_triangle(Triangle::new_with_normal(vec![v1, v2, v3], normal));
         self.add_triangle(Triangle::new(vec![v1, v2, v3]));
 
         Ok(())
     }
 
-    pub fn get_normal_by_index(&self, index: usize) -> vector::Vector {
+    pub(crate) fn get_normal_by_index(&self, index: usize) -> vector::Vector {
         return self.triangles[&index].get_normal()
     }
 
-    pub fn remove_triangle(&mut self, index: &usize) {
+    pub(crate) fn get_plane_by_index(&self, index: usize) -> Plane {
+        let p0_index = self.triangles[&index].ips[0];
+        Plane::new(
+            self.get_normal_by_index(index),
+            self.ip_to_p[&p0_index].clone()
+        )
+    }
+
+    pub(crate) fn remove_triangle(&mut self, index: &usize) {
         /*
         использовать осторожно:
         поля ins в MeshTriangle по прежнему могут содеражть индексы удаленных треугольников
         ip_to_its - тоже может содержать индексы удаленных треугольников в векторах.
         */
-        self.triangles.remove(index);
+        let res = self.triangles.remove(index);
+        if res.is_some() {
+            self.header.num_triangles -= 1;
+        }
     }
 
     fn read_header<T: ReadBytesExt>(input: &mut T) -> Result<BinaryStlHeader> {
@@ -226,7 +259,10 @@ impl BinaryStlFile {
         Ok(BinaryStlHeader{ header: header, num_triangles: num_triangles })
     }
 
-
+    /// This static method reads a data from the `input` in STL format and creates a new topology.
+    /// # Arguments
+    ///
+    /// * `input` - A type, implementing ReadBytesExt.
     pub fn read_stl<T: ReadBytesExt>(input: &mut T) -> Result<BinaryStlFile> {
         // read the header
         let start = PreciseTime::now();
@@ -243,34 +279,40 @@ impl BinaryStlFile {
 
         info!("Number of triangles is {:?}", header.num_triangles);
         for i in 0 .. header.num_triangles {
-            if i > 100000000 {
-                break;
-            }
+            //if i > 10000 {
+            //    break;
+            //}
             debug!("Iterration number {:?}", i);
 
             mesh.read_triangle(&mut cursor)?;
         }
 
         let end = PreciseTime::now();
-        info!("{} seconds for <read_stl>", start.to(end));
+        info!("<read_stl> is finished in {0} seconds\n", start.to(end));
         Ok(mesh)
     }
 
     fn write_point<T: WriteBytesExt>(out: &mut T, p: &point::Point) -> Result<()> {
 
-        out.write_f32::<LittleEndian>(p.x.clone().to_f32())?;
-        out.write_f32::<LittleEndian>(p.y.clone().to_f32())?;
-        out.write_f32::<LittleEndian>(p.z.clone().to_f32())?;
+        out.write_f32::<LittleEndian>(p.x.clone().convert_to_f32())?;
+        out.write_f32::<LittleEndian>(p.y.clone().convert_to_f32())?;
+        out.write_f32::<LittleEndian>(p.z.clone().convert_to_f32())?;
 
         Ok(())
     }
 
+    /// This method writes a data from the topology to the `out` in STL format.
+    /// # Arguments
+    ///
+    /// * `out` - A type, implementing WryteBytesExt.
     pub fn write_stl<T: WriteBytesExt>(
         &self,
         out: &mut T,
     ) -> Result<()> {
-        debug!("dbg: {:?} : {:?}", self.header.num_triangles as usize, self.triangles.len());
+        let start = PreciseTime::now();
+        info!("Writing model ...");
 
+        //info!("dbg: {:?} : {:?}", self.header.num_triangles as usize, self.triangles.len());
         assert!(self.header.num_triangles as usize == self.triangles.len());
 
         //write the header.
@@ -280,7 +322,7 @@ impl BinaryStlFile {
         // write all the triangles
         for (_, t) in self.triangles.iter() {
             // write the normal
-            Mesh::write_point(out, &t.normal.gen_point())?;
+            Mesh::write_point(out, &t.normal.get_point())?;
 
             // write the points
 
@@ -291,19 +333,40 @@ impl BinaryStlFile {
             out.write_u16::<LittleEndian>(t.attr_byte_count)?;
         }
 
+        let end = PreciseTime::now();
+        info!("<write_stl> is finished in {0} seconds\n", start.to(end));
+
         Ok(())
     }
 
+    /// This method returns a copy of triangle by `index`.
+    /// # Arguments
+    ///
+    /// * `index` - An index of triangle to get
     pub fn get_triangle(&self, index : usize) -> Triangle {
         let mt : &MeshTriangle = &self.triangles[&index];
         let p1 = self.ip_to_p[&mt.ips[0]].clone();
         let p2 = self.ip_to_p[&mt.ips[1]].clone();
         let p3 = self.ip_to_p[&mt.ips[2]].clone();
 
-        Triangle::new(vec![p1,p2,p3])
+        return Triangle::new_with_normal(vec![p1,p2,p3], mt.normal.clone());
     }
 
-    pub fn get_number_of_coincident_points(&self, it1: usize, it2: usize) -> usize {
+
+    /// This method returns a copy of triangle by `index` with a reversed normal.
+    /// # Arguments
+    ///
+    /// * `index` - An index of triangle to get
+    pub fn get_reversed_triangle(&self, index : usize) -> Triangle {
+        let mt : &MeshTriangle = &self.triangles[&index];
+        let p1 = self.ip_to_p[&mt.ips[0]].clone();
+        let p2 = self.ip_to_p[&mt.ips[1]].clone();
+        let p3 = self.ip_to_p[&mt.ips[2]].clone();
+
+        return Triangle::new_with_normal(vec![p2,p1,p3], mt.normal.clone());
+    }
+
+    pub(crate) fn get_number_of_coincident_points(&self, it1: usize, it2: usize) -> usize {
         let mut t1_ipset: BTreeSet<usize> = BTreeSet::new();
         t1_ipset.extend(self.triangles[&it1].ips.clone());
         let mut res : usize = 0;
@@ -316,27 +379,22 @@ impl BinaryStlFile {
         return res;
     }
 
-    pub fn find_segment_conjugated_triangles(&self, it: usize) -> Vec<usize> {
+    pub(crate) fn find_segment_conjugated_triangles(&self, it: usize) -> Vec<usize> {
         let mut res : Vec<usize> = Vec::new();
 
         for int in self.triangles[&it].ins.iter() {
-            let number = self.get_number_of_coincident_points(it, *int);
-            if number == 2 {
-                res.push(int.clone());
-            } else if number > 2 {
-                panic!("Something goes wrong!");
+            if self.triangles.contains_key(int) {
+                let number = self.get_number_of_coincident_points(it, *int);
+                if number == 2 {
+                    res.push(int.clone());
+                } else if number > 2 {
+                    panic!("Something goes wrong!");
+                }
             }
 
         }
         return res;
     }
-
-
-    /*
-    pub fn get_normal_of_triangle(&self, index : usize) -> Vector {
-        return self.triangles[index].normal.clone();
-    }
-    */
 
 }
 

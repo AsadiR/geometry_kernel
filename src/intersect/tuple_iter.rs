@@ -22,11 +22,9 @@ impl TupleIter {
 pub fn enumerate_simple(a : &Mesh, b : &Mesh) -> TupleIter {
     let mut pairs : BTreeSet<(usize, usize)> = BTreeSet::new();
 
-    for index_a in 0..a.triangles.len() {
-        for index_b in 0..b.triangles.len() {
-            if !pairs.contains(&(index_b, index_a)) {
-                pairs.insert((index_a, index_b));
-            }
+    for index_a in 0..a.num_of_triangles() {
+        for index_b in 0..b.num_of_triangles() {
+            pairs.insert((index_a, index_b));
         }
     }
     TupleIter::new(pairs)

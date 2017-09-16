@@ -3,6 +3,7 @@ use primitives::vector::Vector;
 use primitives::line::Line;
 use primitives::number;
 use primitives::number::NumberTrait;
+use primitives::zero_trait::Zero;
 
 use std::fmt;
 use std::cmp::Ordering;
@@ -36,6 +37,10 @@ impl Segment {
         let dot_od_od = od.length2();
         let dot_op_od = op.dot_product(&od);
 
+        if dot_op_od.is_it_zero() {
+            return self.org.clone();
+        }
+
         return &self.org + &(od*(dot_od_od / dot_op_od));
     }
 
@@ -51,32 +56,6 @@ impl Segment {
 
     pub fn gen_line(&self) -> Line {
         return Line::new(self.org.clone(), self.dest.clone());
-    }
-
-    pub fn rot(&mut self, normal : &Vector, d : &number::Number) {
-        let two = number::new(2.);
-        let m = Point {
-            x: (&self.dest.x + &self.org.x)/&two,
-            y: (&self.dest.y + &self.org.y)/&two,
-            z: (&self.dest.z + &self.org.z)/&two
-        };
-        /*
-        let mut temp = self.dest;
-
-        self.org.rotate_around_axis(&m, &normal, 90.);
-        self.dest = self.org;
-        temp.rotate_around_axis(&m, &normal, 90.);
-        self.org = temp;
-        */
-        self.org.rotate_around_axis_90(&m, &normal);
-        self.dest.rotate_around_axis_90(&m, &normal);
-        //swap(&mut self.org, &mut self.dest);
-
-
-        //check rotate
-        assert!((self.org.get_vector().dot_product(&normal) - d).abs() == number::zero());
-        assert!((self.dest.get_vector().dot_product(&normal) - d).abs() == number::zero());
-        assert!(&(&self.dest.get_vector() + &self.org.get_vector()) * number::new(0.5) == m.get_vector());
     }
 
     pub fn flip_if_dest_less_than_org(&mut self) {
@@ -121,36 +100,6 @@ impl PartialOrd for Segment {
     }
 }
 
-
-#[cfg(test)]
-mod tests {
-    use primitives::point::Point;
-    use primitives::vector::Vector;
-    use primitives::segment::Segment;
-
-    #[ignore]
-    #[test]
-    fn rotation() {
-        // x+y+z = 1
-        let p1 = Point::new_from_f64(0., 0., 1.);
-        let p2 = Point::new_from_f64(1., 0., 0.);
-        let p3 = Point::new_from_f64(0., 1., 0.);
-
-        let mut e = Segment { org: p1.clone(), dest: p2.clone() };
-
-        let v1 = &p1 - &p2;
-        let v2 = &p3 - &p2;
-        let mut normal: Vector = v1.cross_product(&v2);
-        // normal.normalize();
-
-        let d = normal.dot_product(&p1.get_vector());
-        e.rot(&normal, &d);
-        e.rot(&normal, &d);
-
-        assert!(p2 == e.org);
-        assert!(p1 == e.dest);
-    }
-}
 
 
 

@@ -11,6 +11,8 @@ use log::LogLevel;
 use primitives::number::NumberTrait;
 use primitives::signed_trait::Signed;
 
+
+/// This structure describes a point in a 3D space.
 #[derive(Clone)]
 #[derive(Hash)]
 pub struct Point {
@@ -21,12 +23,16 @@ pub struct Point {
 
 impl fmt::Debug for Point {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Point [{:?}, {:?}, {:?}]", self.x.clone().to_f32(), self.y.clone().to_f32(), self.z.clone().to_f32())
+        // write!(f, "Point [{:?}, {:?}, {:?}]", self.x.clone().convert_to_f32(), self.y.clone().convert_to_f32(), self.z.clone().convert_to_f32())
+        write!(f, "Point [{0} <{1}>, {2} <{3}>, {4}<{5}>]",
+               self.x, self.x.clone().convert_to_f32(),
+               self.y, self.y.clone().convert_to_f32(),
+               self.z, self.z.clone().convert_to_f32())
     }
 }
 
 #[derive(PartialEq, Eq)]
-pub enum EPointPosition {
+pub(crate) enum EPointPosition {
     Left,
     Right,
     Behind,
@@ -38,36 +44,50 @@ pub enum EPointPosition {
 
 
 impl Point {
+    /// This method converts the `Point` to a `Vector`.
     pub fn convert_to_vector(self) -> vector::Vector {
         vector::Vector {x: self.x, y: self.y, z: self.z}
     }
 
+    /// This method creates a `Vector` from the `Point`.
     pub fn get_vector(&self) -> vector::Vector {
         vector::Vector {x: self.x.clone(), y: self.y.clone(), z: self.z.clone()}
     }
 
+    /// This method creates `Point` from `x`, `y` and `z` coordinates.
+    /// # Arguments
+    ///
+    /// * `x` - A `Number` representing the x coordinate.
+    /// * `y` - A `Number` representing the y coordinate.
+    /// * `z` - A `Number` representing the z coordinate.
     pub fn new(x : number::Number, y : number::Number, z : number::Number) -> Point {
         Point{x: x, y: y, z: z}
     }
 
+    /// This method creates `Point` from `x`, `y` and `z` coordinates.
+    /// # Arguments
+    ///
+    /// * `x` - A `f64` representing the x coordinate.
+    /// * `y` - A `f64` representing the y coordinate.
+    /// * `z` - A `f64` representing the z coordinate.
     pub fn new_from_f64(x : f64, y : f64, z : f64) -> Point {
         Point{x: number::new(x), y: number::new(y), z: number::new(z)}
     }
 
-    pub fn swap_yz(& mut self) {
+    pub(crate) fn swap_yz(& mut self) {
         swap(&mut self.y, &mut self.z);
     }
 
-    pub fn swap_xy(& mut self) {
+    pub(crate) fn swap_xy(& mut self) {
         swap(&mut self.x, &mut self.y);
     }
 
-    pub fn swap_xz(& mut self) {
+    pub(crate) fn swap_xz(& mut self) {
         swap(&mut self.x, &mut self.z);
     }
 
 
-    pub fn classify(&self, p0 : &Point, p1 : &Point) -> EPointPosition {
+    pub(crate) fn classify(&self, p0 : &Point, p1 : &Point) -> EPointPosition {
         let a = p1 - p0;
         let b = self - p0;
         let sa = &a.x*&b.y - &b.x*&a.y;
@@ -82,29 +102,6 @@ impl Point {
             _ => return EPointPosition::Between
         }
     }
-
-    pub fn rotate_around_axis_90(&mut self, point_on_axis : &Point, axis_dir : &vector::Vector) {
-        //assert!(f64::abs(axis_dir.length() - 1.) <= EPS, "AxisDir must be unit vector");
-
-        let res : Point;
-        {
-            let v: &Point = self;
-
-            let r: vector::Vector = v - point_on_axis;
-            let part1 : Point = point_on_axis.clone();
-            let part2: number::Number = axis_dir.dot_product(&r);
-            let part3: vector::Vector = axis_dir.cross_product(&r);
-            res = (part1 + axis_dir * part2) + part3;
-        }
-        *self = res
-
-    }
-
-
-}
-
-fn rad_from_deg(x : f64) -> f64 {
-    return (PI / 180.) * x;
 }
 
 impl Add<vector::Vector> for Point {

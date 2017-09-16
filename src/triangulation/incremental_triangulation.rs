@@ -4,36 +4,54 @@ use primitives::*;
 use matrix::*;
 use intersect::line_x_line;
 
-pub fn triangulate(mut points : Vec<Point>) -> Vec<Triangle> {
-    // all points should be unique! Otherwise algorithm will hang out!
-    println!("Triangulation was started for points:");
-    println!("{:?}", points);
+use log::LogLevel;
+use time::PreciseTime;
 
-    assert!(points.len() > 3, "Not enough points!");
+pub fn triangulate(mut points : Vec<Point>, mut plane: Plane) -> Vec<Triangle> {
+    // all points should be unique! Otherwise algorithm will hang out!
+    debug!("Triangulation was started for points:");
+    debug!("{:?}", points);
+
+    assert!(points.len() >= 3, "Not enough points. Only {0} points were supplied!", points.len());
+
+
 
     let mut ts : Vec<Triangle> = Vec::new();
 
     let mut p = Point::new_from_f64(0.,0.,0.);
-    let mut orientation : Number = number::new(0.);
-    let mut normal_ = get_normal(&points, & mut orientation);
-    let mut d_ = normal_.dot_product(&points[0].get_vector());
 
-    check_points(&normal_, &d_, &points);
-    let normal_type : NormalType = classify_normal(&normal_);
-
-    modify_points(&mut points, &normal_type, &mut orientation, &mut normal_, &mut d_);
-
-    if orientation.is_it_negative() {
-        normal_ = &normal_ * number::new(-1.);
-        d_ = normal_.dot_product(&points[0].get_vector());
+    if points.len() ==  3 {
+        let mut t = Triangle::new(points);
+        let dp = t.get_normal().dot_product(plane.get_ref_normal());
+        if dp.is_it_negative() {
+            t.reverse();
+        }
+        return vec![t];
     }
 
-    check_points(&normal_, &d_, &points);
+    if log_enabled!(LogLevel::Debug) {
+        check_points(&plane, &points);
+    }
 
-    //let n = points.len();
+    let normal_type : NormalType = classify_normal(plane.get_ref_normal());
+
+    modify_points(&mut points, &normal_type, &mut plane);
+
+    let iv = Vector::new_from_f64(1., 0., 0.);
+    let jv = Vector::new_from_f64(0., 1., 0.);
+    let mut orientation : Number = iv.mixed_product(&jv, plane.get_ref_normal());
+
+    debug!("plane: {:?}", plane);
+    debug!("d: {0}", plane.get_ref_d().clone().convert_to_f32());
+
+    if log_enabled!(LogLevel::Debug) {
+        check_points(&plane, &points);
+    }
+
+
     let e : Segment = hull_edge(&mut points);
-    //println!("ps {:?}", points);
-    println!("hull_edge_res = {}\n", e);
+
+    debug!("hull_edge_res = {}\n", e);
 
     let mut frontier : BTreeSet<Segment> = BTreeSet::new();
     frontier.insert(e);
@@ -41,15 +59,16 @@ pub fn triangulate(mut points : Vec<Point>) -> Vec<Triangle> {
     while !frontier.is_empty() {
         let e = frontier.iter().next_back().unwrap().clone();
 
-        println!("frontie {:?}", frontier);
+        debug!("frontie {:?}", frontier);
         frontier.remove(&e);
-        println!("edge: {:?}", e);
-        if mate(&e, &mut points, &mut p, &normal_, &d_) {
-            println!("mate_point = {}", p);
+        debug!("edge: {:?}", e);
+        if mate(&e, &mut points, &mut p, &plane) {
+            debug!("mate_point = {}", p);
 
             update_frontier(&mut frontier, &p, &e.org);
             update_frontier(&mut frontier, &e.dest, &p);
             let tr : Triangle;
+
             if orientation.is_it_negative() {
                 tr = Triangle::new(vec![
                     inv_point_transform(&e.org, &normal_type),
@@ -63,10 +82,13 @@ pub fn triangulate(mut points : Vec<Point>) -> Vec<Triangle> {
                     inv_point_transform(&p, &normal_type)
                 ]);
             }
+
             ts.push(tr);
         }
-        println!();
+        debug!("");
     }
+
+    //println!("Triangles len {0}", ts.len());
 
     return ts;
 }
@@ -124,23 +146,24 @@ fn mate(
     e : &Segment,
     points : &mut Vec<Point>,
     p : &mut Point,
-    normal_ : &Vector,
-    d_ : &Number
+    plane: &Plane
 ) -> bool {
 
     let mut best_p : Option<Point> = None;
     let mut best_t_min : Option<Number> = None;
 
-    let f : Line = get_segment_normal(e, normal_, d_);
-    //println!("f {:?}", f);
+    let f : Line = get_segment_normal(e, plane);
 
     for i in 0..points.len() {
         let c = points[i].classify(&e.org, &e.dest);
         if c == point::EPointPosition::Right {
             let cur_s = Segment::new(e.dest.clone(), points[i].clone());
-            let g : Line = get_segment_normal(&cur_s, normal_, d_);
+            let g : Line = get_segment_normal(&cur_s, plane);
             let ot = line_x_line::intersect_p(&f, &g);
 
+            //println!("f {:?}", f);
+            //println!("g {:?}", g);
+            assert!(ot.is_some());
             /*
             println!("------");
             println!("point: {:?}", points[i]);
@@ -157,7 +180,7 @@ fn mate(
     }
 
     if best_p.is_some() {
-        println!("best_t: {0}", best_t_min.unwrap());
+        debug!("best_t: {0}", best_t_min.unwrap());
         *p = best_p.unwrap();
         return true;
     } else {
@@ -183,14 +206,14 @@ fn update_frontier(
 }
 
 
-
+/*
 fn get_normal(points : & Vec<Point>, orientation : &mut Number) -> Vector {
+    let iv = Vector::new_from_f64(1., 0., 0.);
+    let jv = Vector::new_from_f64(0., 1., 0.);
     for i in 0..(points.len()-2) {
         let v1 = &points[i] - &points[i+1];
         let v2 = &points[i+1] - &points[i+2];
         let mut normal = v1.cross_product(&v2);
-        let iv = Vector::new_from_f64(1., 0., 0.);
-        let jv = Vector::new_from_f64(0., 1., 0.);
         *orientation = iv.mixed_product(&jv, &normal);
         if !normal.is_zero() {
             return normal;
@@ -198,21 +221,18 @@ fn get_normal(points : & Vec<Point>, orientation : &mut Number) -> Vector {
     }
     panic!("All points are collinear");
 }
+*/
 
-fn check_points(normal_ : &Vector, d_ : &Number, points : &Vec<Point> ) {
-    //println!("normal: {}\n", normal_);
-    //println!("d: {}\n", d_);
+fn check_points(plane: &Plane, points : &Vec<Point> ) {
+    //println!("normal: {}\n", plane.get_ref_normal());
+    //println!("d: {}\n", plane.get_ref_d());
     for i in 0..points.len() {
         //println!("point: {} \n", points[i]);
-        assert!(is_point_in_plane(&points[i], normal_, d_), "Point {:?} is not co-planar!", points[i]);
+        assert!(plane.does_it_contain_point(&points[i]), "Point {:?} is not co-planar!", points[i]);
     }
 }
 
-fn is_point_in_plane(point : &Point, normal : &Vector, d : &Number) -> bool {
-    let value = normal.dot_product(&point.get_vector()) - d;
-    //println!("value {0}", value);
-    return value.is_it_zero()
-}
+
 
 enum NormalType {
     ABC, AB, AC, BC, A, B, C
@@ -235,27 +255,28 @@ fn classify_normal(n : &Vector) -> NormalType {
     }
 }
 
-fn get_segment_normal(s : &Segment, normal_ : &Vector, d_ : &Number) -> Line {
+fn get_segment_normal(s : &Segment, plane: &Plane) -> Line {
     let e : Vector = &s.dest - &s.org;
     let M : Point = s.org.clone() + e.clone()*number::new(1./2.);
 
     /*
         лежит в плоскости
-        n.x*L.x + n.y*L.y + n.z*L.z = d
+        n.x*L.x + n.y*L.y + n.z*L.z = -d
         ML перпендикулярен e
         e.x*L.x + e.y*L.y + e.z*L.z = e.x*M.x + e.y*M.y + e.z*M.z
         L находится справа от s
         e.x*L.y - e.y*L.x  = e.x*s.org.y - e.y*s.org.x - 1
     */
-
+    let normal = plane.get_ref_normal();
+    let d = plane.get_ref_d();
 
     let mut a : Matrix<Number> =Matrix::new_from_vector(
-        vec![Row::new_from_vector(vec![normal_.x.clone(), normal_.y.clone(), normal_.z.clone()]),
+        vec![Row::new_from_vector(vec![normal.x.clone(), normal.y.clone(), normal.z.clone()]),
              Row::new_from_vector(vec![e.x.clone(), e.y.clone(), e.z.clone()]),
              Row::new_from_vector(vec![-e.y.clone(), e.x.clone(), number::new(0.)])]);
 
     let mut y : Row<Number> = Row::new_from_vector(
-        vec![d_.clone(),
+        vec![-d.clone(),
              &e.x*&M.x + &e.y*&M.y + &e.z*&M.z,
              &e.x*&s.org.y - &e.y*&s.org.x - number::new(1.)]);
 
@@ -265,18 +286,18 @@ fn get_segment_normal(s : &Segment, normal_ : &Vector, d_ : &Number) -> Line {
     let L = Point::new(vec_L.remove(0), vec_L.remove(0), vec_L.remove(0));
 
     assert!((&L-&M).dot_product(&(&s.dest - &s.org)).is_it_zero());
-    assert!((normal_.dot_product(&L.get_vector()) - d_).is_it_zero());
+    assert!(plane.does_it_contain_point(&L));
     assert!((&e.x*(&L.y - &s.org.y) - (&L.x - &s.org.x)*&e.y) == number::new(-1.));
 
+    debug!("plane: {:?}", plane);
+    debug!("d: {0}", plane.get_ref_d().clone().convert_to_f32());
     return Line::new(M, L);
 }
 
 fn modify_points(
     points : &mut Vec<Point>,
     nt : &NormalType,
-    orientation : &mut Number,
-    normal_ : &mut Vector,
-    d_ : &mut Number
+    plane : &mut Plane
 ) {
     match *nt {
         NormalType::ABC => return,
@@ -285,8 +306,8 @@ fn modify_points(
                 p.swap_yz();
                 p.swap_xy();
             }
-            *normal_ = get_normal(points, orientation);
-            *d_ = normal_.dot_product(&points[0].get_vector());
+            plane.swap_yz();
+            plane.swap_xy();
             return;
         },
         NormalType::AC => return,
@@ -296,8 +317,8 @@ fn modify_points(
                 p.swap_xz();
                 p.swap_xy();
             }
-            *normal_ = get_normal(points, orientation);
-            *d_ = normal_.dot_product(&points[0].get_vector());
+            plane.swap_xz();
+            plane.swap_xy();
             return;
         }
         NormalType::B => {
@@ -305,8 +326,8 @@ fn modify_points(
                 p.swap_yz();
                 p.swap_xy();
             }
-            *normal_ = get_normal(points, orientation);
-            *d_ = normal_.dot_product(&points[0].get_vector());
+            plane.swap_yz();
+            plane.swap_xy();
             return;
         }
         NormalType::C => return,
@@ -322,7 +343,7 @@ mod tests {
     use std::collections::BTreeSet;
     use primitives::*;
     use triangulation::incremental_triangulation::triangulate;
-
+    use env_logger::init  as env_logger_init;
 
     #[test]
     fn triangulation_abc() {
@@ -336,12 +357,13 @@ mod tests {
         let one_third = number::new(1.)/number::new(3.);
         let f = Point::new(one_third.clone(), one_third.clone(), one_third);
 
+        let plane = Plane::new_3p(&a, &b, &d);
         let ps : Vec<Point> = vec![a, b, c, d, e, f];
 
-        let ts = triangulate(ps.clone());
+        let ts = triangulate(ps.clone(), plane);
 
-        println!("len: {} \n", ts.len());
-        println!("vec: {:?} \n", ts);
+        info!("len: {} \n", ts.len());
+        info!("vec: {:?} \n", ts);
 
         assert!(ts.len() == 5);
 
@@ -351,7 +373,7 @@ mod tests {
 
         let mut f = File::create("res_of_tests/inc_tr/test_abc_.stl").unwrap();
 
-        assert!(mesh.size() == 6);
+        assert!(mesh.num_of_points() == 6);
 
         match mesh.write_stl(&mut f) {
             Ok(_) => (),
@@ -368,12 +390,13 @@ mod tests {
         let d = Point::new_from_f64(1.0, 0.0, -1.0);
         let e = Point::new_from_f64(-1.0, 2.0, -1.0);
 
+        let plane = Plane::new_3p(&a, &b, &c);
         let ps : Vec<Point> = vec![a, b, c, d, e];
 
-        let ts = triangulate(ps.clone());
+        let ts = triangulate(ps.clone(), plane);
 
-        println!("len: {} \n", ts.len());
-        println!("vec: {:?} \n", ts);
+        info!("len: {} \n", ts.len());
+        info!("vec: {:?} \n", ts);
 
         assert!(ts.len() == 4);
 
@@ -383,7 +406,7 @@ mod tests {
 
         let mut f = File::create("res_of_tests/inc_tr/test_ab.stl").unwrap();
 
-        assert!(mesh.size() == 5);
+        assert!(mesh.num_of_points() == 5);
 
         match mesh.write_stl(&mut f) {
             Ok(_) => (),
@@ -404,12 +427,13 @@ mod tests {
         let d = Point::new(minus_one_third.clone(), minus_one_third, four_third);
         let e = Point::new_from_f64(5., -3., -4.);
 
+        let plane = Plane::new_3p(&a, &b, &d);
         let ps : Vec<Point> = vec![a, b, c, d, e];
 
-        let ts = triangulate(ps.clone());
+        let ts = triangulate(ps.clone(), plane);
 
-        println!("len: {} \n", ts.len());
-        println!("vec: {:?} \n", ts);
+        info!("len: {} \n", ts.len());
+        info!("vec: {:?} \n", ts);
 
         assert!(ts.len() == 4);
 
@@ -419,7 +443,7 @@ mod tests {
 
         let mut f = File::create("res_of_tests/inc_tr/test_ac.stl").unwrap();
 
-        assert!(mesh.size() == 5);
+        assert!(mesh.num_of_points() == 5);
 
         match mesh.write_stl(&mut f) {
             Ok(_) => (),
@@ -436,12 +460,13 @@ mod tests {
         let d = Point::new_from_f64(3., -1., 2.);
         let e = Point::new_from_f64(5., 1., 0.);
 
+        let plane = Plane::new_3p(&a, &b, &c);
         let ps : Vec<Point> = vec![a, b, c, d, e];
 
-        let ts = triangulate(ps.clone());
+        let ts = triangulate(ps.clone(), plane);;
 
-        println!("len: {} \n", ts.len());
-        println!("vec: {:?} \n", ts);
+        info!("len: {} \n", ts.len());
+        info!("vec: {:?} \n", ts);
 
         assert!(ts.len() == 4);
 
@@ -451,7 +476,7 @@ mod tests {
 
         let mut f = File::create("res_of_tests/inc_tr/test_bc.stl").unwrap();
 
-        assert!(mesh.size() == 5);
+        assert!(mesh.num_of_points() == 5);
 
         match mesh.write_stl(&mut f) {
             Ok(_) => (),
@@ -468,12 +493,13 @@ mod tests {
         let d = Point::new_from_f64(1., 2., 2.);
         let e = Point::new_from_f64(1., 1., 3.);
 
+        let plane = Plane::new_3p(&a, &b, &c);
         let ps : Vec<Point> = vec![a, b, c, d, e];
 
-        let ts = triangulate(ps.clone());
+        let ts = triangulate(ps.clone(), plane);
 
-        println!("len: {} \n", ts.len());
-        println!("vec: {:?} \n", ts);
+        info!("len: {} \n", ts.len());
+        info!("vec: {:?} \n", ts);
 
         assert!(ts.len() == 3);
 
@@ -483,7 +509,7 @@ mod tests {
 
         let mut f = File::create("res_of_tests/inc_tr/test_a.stl").unwrap();
 
-        assert!(mesh.size() == 5);
+        assert!(mesh.num_of_points() == 5);
 
         match mesh.write_stl(&mut f) {
             Ok(_) => (),
@@ -503,12 +529,13 @@ mod tests {
         let d = Point::new(one_third.clone(), number::new(1.), one_third);
         let e = Point::new_from_f64(5., 1., -1.);
 
+        let plane = Plane::new_3p(&a, &b, &c);
         let ps : Vec<Point> = vec![a, b, c, d, e];
 
-        let ts = triangulate(ps.clone());
+        let ts = triangulate(ps.clone(), plane);
 
-        println!("len: {} \n", ts.len());
-        println!("vec: {:?} \n", ts);
+        info!("len: {} \n", ts.len());
+        info!("vec: {:?} \n", ts);
 
         assert!(ts.len() == 4);
 
@@ -518,7 +545,7 @@ mod tests {
 
         let mut f = File::create("res_of_tests/inc_tr/test_b.stl").unwrap();
 
-        assert!(mesh.size() == 5);
+        assert!(mesh.num_of_points() == 5);
 
         match mesh.write_stl(&mut f) {
             Ok(_) => (),
@@ -536,12 +563,13 @@ mod tests {
         let e = Point::new_from_f64(-1., 3., 1.);
         let f = Point::new_from_f64(1., 3., 1.);
 
+        let plane = Plane::new_3p(&a, &b, &c);
         let ps : Vec<Point> = vec![a, b, c, d, e, f];
 
-        let ts = triangulate(ps.clone());
+        let ts = triangulate(ps.clone(), plane);
 
-        println!("len: {} \n", ts.len());
-        println!("vec: {:?} \n", ts);
+        info!("len: {} \n", ts.len());
+        info!("vec: {:?} \n", ts);
 
         assert!(ts.len() == 4);
 
@@ -551,7 +579,7 @@ mod tests {
 
         let mut f = File::create("res_of_tests/inc_tr/test_c.stl").unwrap();
 
-        assert!(mesh.size() == 6);
+        assert!(mesh.num_of_points() == 6);
 
         match mesh.write_stl(&mut f) {
             Ok(_) => (),
@@ -562,7 +590,6 @@ mod tests {
 
     #[test]
     fn triangulation_c2_loop() {
-        // z = 1
         let a = Point::new_from_f64(-2., 0., 1.);
         let b = Point::new_from_f64(-1., 0., 1.);
         let c = Point::new_from_f64(-1., 1., 1.);
@@ -571,13 +598,13 @@ mod tests {
         let f = Point::new_from_f64(1., 0., 1.);
         let g = Point::new_from_f64(0., 3., 1.);
 
-
+        let plane = Plane::new_3p(&a, &b, &c);
         let ps : Vec<Point> = vec![a, b, c, d, e, f, g];
 
-        let ts = triangulate(ps.clone());
+        let ts = triangulate(ps.clone(), plane);
 
-        println!("len: {} \n", ts.len());
-        println!("vec: {:?} \n", ts);
+        info!("len: {} \n", ts.len());
+        info!("vec: {:?} \n", ts);
 
         assert!(ts.len() == 7);
 

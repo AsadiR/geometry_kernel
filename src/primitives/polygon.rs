@@ -21,6 +21,10 @@ impl Polygon {
         return self.points;
     }
 
+    pub fn get_points_ref(&self) -> &Vec<Point> {
+        return &self.points;
+    }
+
 
     pub fn add_point(&mut self, p : Point) {
         self.points.push(p);

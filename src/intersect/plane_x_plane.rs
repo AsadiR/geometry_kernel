@@ -14,8 +14,8 @@ pub fn intersect(plane1 : &Plane, plane2 : &Plane) -> (Option<Line>, InfoPxP) {
     // (p - p0)*n = p*n + d => d = -p0*n
     let mut a = plane1.normal.cross_product(&plane2.normal);
 
-    let d1 = plane1.get_d();
-    let d2 = plane2.get_d();
+    let d1 = plane1.get_ref_d();
+    let d2 = plane2.get_ref_d();
     let n1 = &plane1.normal;
     let n2 = &plane2.normal;
 
@@ -100,12 +100,12 @@ mod tests {
         let n = Vector::new_from_f64(7.0, 0., 0.);
         let p0 = Point::new_from_f64(0., 0., 0.);
 
-        let plane1 = Plane { normal: n, point: p0};
+        let plane1 = Plane::new(n, p0);
 
         let n = Vector::new_from_f64(0., 7.0, 0.);
         let p0 = Point::new_from_f64(0., 0., 0.);
 
-        let plane2 = Plane { normal: n, point: p0};
+        let plane2 = Plane::new(n, p0);
 
         let res = plane_x_plane::intersect(&plane1, &plane2);
 
@@ -128,12 +128,12 @@ mod tests {
         let n = Vector::new_from_f64(7.0, 0., 0.);
         let p0 = Point::new_from_f64(1., 0., 0.);
 
-        let plane1 = Plane { normal: n, point: p0};
+        let plane1 = Plane::new(n, p0);
 
         let n = Vector::new_from_f64(7., 0.0, 0.);
         let p0 = Point::new_from_f64(5., 0., 0.);
 
-        let plane2 = Plane { normal: n, point: p0};
+        let plane2 = Plane::new(n, p0);
 
         
         let res = plane_x_plane::intersect(&plane1, &plane2);
@@ -150,12 +150,12 @@ mod tests {
         let n = Vector::new_from_f64(7., 0., 0.);
         let p0 = Point::new_from_f64(5., 0., 0.);
 
-        let plane1 = Plane { normal: n, point: p0};
+        let plane1 = Plane::new(n, p0);
 
         let n = Vector::new_from_f64(7., 0., 0.);
         let p0 = Point::new_from_f64(5., 0., 0.);
 
-        let plane2 = Plane { normal: n, point: p0};
+        let plane2 = Plane::new(n, p0);
 
         
         let res = plane_x_plane::intersect(&plane1, &plane2);

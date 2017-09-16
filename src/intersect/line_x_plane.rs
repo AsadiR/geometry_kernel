@@ -41,7 +41,7 @@ mod tests {
         let n = Vector::new_from_f64(1.0, 1.0, 1.0);
         let p0 = Point::new_from_f64(1.0, 0.0, 0.0);
 
-        let p = Plane { normal: n, point: p0};
+        let p = Plane::new(n, p0);
 
         let res = line_x_plane::intersect(&l, &p);
 
@@ -68,7 +68,7 @@ mod tests {
         let n = Vector::new_from_f64(1.0, 1.0, 1.0);
         let p0 = Point::new_from_f64(1.0, 0.0, 0.0);
 
-        let p = Plane { normal: n, point: p0};
+        let p = Plane::new(n, p0);
 
         let res = line_x_plane::intersect(&l, &p);
 
@@ -91,7 +91,7 @@ mod tests {
         let n = Vector::new_from_f64(1.0, 1.0, 1.0);
         let p0 = Point::new_from_f64(1.0, 0.0, 0.0);
 
-        let p = Plane { normal: n, point: p0};
+        let p = Plane::new(n, p0);
 
         let res = line_x_plane::intersect(&l, &p);
 

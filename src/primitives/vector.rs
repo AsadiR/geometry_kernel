@@ -5,11 +5,13 @@ use std::fmt;
 use primitives::point;
 use primitives::number;
 use primitives::number::NumberTrait;
-use std::f64;
+use std::mem::swap;
+
 //use core::num::Float;
 //use std::num::Float;
 
 
+/// This structure repsresents a 3D vector.
 #[derive(Hash)]
 #[derive(Clone)]
 pub struct Vector {
@@ -20,20 +22,29 @@ pub struct Vector {
 
 impl fmt::Debug for Vector {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Point [{:?}, {:?}, {:?}]", self.x.clone().to_f32(), self.y.clone().to_f32(), self.z.clone().to_f32())
+        write!(f, "Point [{:?}, {:?}, {:?}]", self.x.clone().convert_to_f32(), self.y.clone().convert_to_f32(), self.z.clone().convert_to_f32())
     }
 }
 
 lazy_static! {
-    pub static ref  ZERO : Vector = Vector {x: number::new(0.), y: number::new(0.), z: number::new(0.)};
+    static ref  ZERO : Vector = Vector {x: number::new(0.), y: number::new(0.), z: number::new(0.)};
 }
 
 
 impl Vector {
+
+    /// This method calculates a dot product of `self` and `other` and returns `Number`.
+    /// # Arguments
+    ///
+    /// * `other` - The `Vector` to multiply on.
     pub fn dot_product(&self, other: &Vector) -> number::Number {
         &self.x*&other.x + &self.y*&other.y + &self.z*&other.z
     }
 
+    /// This method calculates a cross product of `self` and `other` and returns `Number`.
+    /// # Arguments
+    ///
+    /// * `other` - The `Vector` to multiply on.
     pub fn cross_product(&self, other: &Vector) -> Vector {
         //a2*b3  -   a3*b2,     a3*b1   -   a1*b3,     a1*b2   -   a2*b1
         Vector {x: &self.y*&other.z - &self.z*&other.y,
@@ -41,45 +52,73 @@ impl Vector {
                 z: &self.x*&other.y - &self.y*&other.x}
     }
 
+    /// This method calculates a dot product of `self` and `other` and returns `Number`.
+    /// # Arguments
+    ///
+    /// * `other` - The `Vector` to multiply on.
     pub fn mixed_product(&self, a: &Vector, b: &Vector) -> number::Number {
         self.dot_product(&(a.cross_product(b)))
     }
 
+    // This method returns `true` if  it's a null.
     pub fn is_zero(&self) -> bool {
         *ZERO == *self
     }
 
+    /// This method checks if `self` collinear to `other`.
+    /// # Arguments
+    ///
+    /// * `other` - The `Vector` to compare with.
     pub fn is_collinear_to(&self, other : &Vector) -> bool {
         self.cross_product(other).is_zero()
     }
 
-    pub fn gen_point(&self) -> point::Point {
+    /// This method creates a `Point` from the `Vector`.
+    pub fn get_point(&self) -> point::Point {
         point::Point {
             x: self.x.clone(),
             y: self.y.clone(),
             z: self.z.clone()
         }
     }
+
+    /// This method creates `Vector` from `x`, `y` and `z` coordinates.
+    /// # Arguments
+    ///
+    /// * `x` - A `Number` representing the x coordinate.
+    /// * `y` - A `Number` representing the y coordinate.
+    /// * `z` - A `Number` representing the z coordinate.
     pub fn new(x : number::Number, y : number::Number, z : number::Number) -> Vector {
         Vector {x:x, y:y, z:z}
     }
 
+    /// This method creates `Vector` from `x`, `y` and `z` coordinates.
+    /// # Arguments
+    ///
+    /// * `x` - A `f64` representing the x coordinate.
+    /// * `y` - A `f64` representing the y coordinate.
+    /// * `z` - A `f64` representing the z coordinate.
     pub fn new_from_f64(x : f64, y : f64, z : f64) -> Vector {
         Vector {x: number::new(x), y: number::new(y), z: number::new(z)}
     }
 
+    /// This method returns a square length of the `Vector`.
     pub fn length2(&self) -> number::Number {
         &self.x*&self.x + &self.y*&self.y + &self.z*&self.z
     }
 
-    /*
-    pub fn normalize(&mut self) {
-        let l = self.length();
-        self.x = &self.x / &l;
-        self.y = &self.y / &l;
-        self.z = &self.z / &l;
+    pub(crate) fn swap_yz(& mut self) {
+        swap(&mut self.y, &mut self.z);
     }
-    */
+
+    pub(crate) fn swap_xy(& mut self) {
+        swap(&mut self.x, &mut self.y);
+    }
+
+    pub(crate) fn swap_xz(& mut self) {
+        swap(&mut self.x, &mut self.z);
+    }
+
 }
 
 impl PartialEq for Vector {

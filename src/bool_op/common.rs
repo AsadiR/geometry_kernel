@@ -11,6 +11,7 @@ use std::vec;
 
 use log::LogLevel;
 use time::PreciseTime;
+use std::result::Result;
 
 #[derive(Clone)]
 #[derive(PartialEq, Eq)]
@@ -29,56 +30,62 @@ impl Marker {
     }
 }
 
+/// This structure keeps intermediate information, necessary for performing of boolean operations and have methods to perform such operations.
+/// It's still in a process of being created, so it is pretty slow and unreliable.
+/// It's recommended to perform boolean operations only for simple objects.
 pub struct BoolOpPerformer {
     mesh_a : Mesh,
     mesh_b : Mesh,
     a_it_to_marker : HashMap<usize, Marker>,
-    b_it_to_marker : HashMap<usize, Marker>
+    b_it_to_marker : HashMap<usize, Marker>,
 }
 
 fn find_conjugated_point(tr: &Triangle, org: &Point, dest: &Point) -> Option<Point> {
     for i in 0..3 {
-        let ref p_cur = tr.points[i];
-        let ref p_next = tr.points[(i+1)%3];
+        let p_cur = tr.get_ref(i);
+        let p_next = tr.get_ref((i+1)%3);
         if (p_cur == org) && (p_next == dest) || (p_cur == dest) && (p_next == org) {
-            return Some(tr.points[(i+2)%3].clone())
+            return Some(tr.get_ref((i+2)%3).clone())
         }
     }
     return None;
 }
 
 fn first_classification(t: &Triangle, tdesc: &mut TDesc) -> Marker {
-    println!("First classification for {:?} was started", t);
-    for (s, n) in tdesc.get_s_and_n_drain_iter() {
-        println!("s: {:?}", s);
+    debug!("First classification for {:?} was started", t);
+    for &(ref s, ref n) in tdesc.get_s_and_n_ref().iter() {
+        debug!("s: {:?}", s);
 
-        let (org, dest) = s.get_org_dest();
+        let (org, dest) = s.clone().get_org_dest();
         let ocp = find_conjugated_point(t, &org, &dest);
-        let s = Segment::new(org, dest);
         match ocp {
             Some(p) => {
                 let p_proj = s.get_point_projection(&p);
+                debug!("p_proj {:?}", p_proj);
+                debug!("p {:?}", p);
+                debug!("normal: {:?}", n);
                 let v = p - p_proj;
+                debug!("v: {:?}", v);
                 let dot_vn = v.dot_product(&n);
                 if dot_vn.is_it_negative() {
-                    println!("It's an outer triangle\n");
-                    return Marker::Outer;
-                } else {
-                    println!("It's an inner triangle\n");
+                    debug!("It's an inner triangle dot_vn={0}\n", dot_vn);
                     return  Marker::Inner;
+                } else if dot_vn.is_it_positive() {
+                    debug!("It's an outer triangle dot_vn={0}\n", dot_vn);
+                    return Marker::Outer;
                 }
             },
             _ => {}
         }
     }
-    println!("It's an unclassified triangle\n");
+    debug!("It's an unclassified triangle\n");
     return Marker::Unclassified;
 }
 
 fn second_classification(t: &Triangle, tdesc: &mut TDesc) -> Marker {
-    for polygon in tdesc.get_polygons_drain_iter() {
+    for polygon in tdesc.get_polygons_ref() {
         let pn = polygon.normal.clone();
-        let ps = polygon.get_points();
+        let ps = polygon.get_points_ref();
         let ps_len = ps.len();
         let tn = t.get_normal();
 
@@ -113,15 +120,18 @@ fn second_classification(t: &Triangle, tdesc: &mut TDesc) -> Marker {
 fn triangulate_all(it_to_desc: HashMap<usize, TDesc>) -> Vec<(Triangle, Marker)> {
     let mut new_ts : Vec<(Triangle, Marker)>  = Vec::new();
     for (it, mut tdesc) in it_to_desc.into_iter() {
-        let mut v : Vec<Point> = Vec::new();
+        let mut points : Vec<Point> = Vec::new();
         for p in tdesc.get_points_drain_iter() {
-            v.push(p);
+            points.push(p);
         }
-        let ts = triangulate(v, tdesc.plane.clone());
+
+        let ts = triangulate(points, tdesc.plane.clone());
+
         for mut t in ts {
             let m1 = first_classification(&t, &mut tdesc);
             let m2 = second_classification(&t, &mut tdesc);
             let res_marker = if m2.is_it_planar() {
+                // TODO исправить баг с параллельным продолжением
                 m2
             } else {
                 m1
@@ -180,9 +190,17 @@ impl TDesc {
         return self.points.drain();
     }
 
+    pub fn get_points_ref(&self) -> &HashSet<Point> {
+        return &self.points;
+    }
+
     pub fn get_s_and_n_drain_iter(&mut self) -> vec::Drain<(Segment, Vector)> {
         let len = self.s_and_n.len();
         return self.s_and_n.drain(0..len);
+    }
+
+    pub fn get_s_and_n_ref(&self) -> &Vec<(Segment, Vector)> {
+        return &self.s_and_n;
     }
 
     pub fn get_polygons_drain_iter(&mut self) -> vec::Drain<Polygon> {
@@ -190,28 +208,49 @@ impl TDesc {
         return self.polygons.drain(0..len);
     }
 
+    pub fn get_polygons_ref(&self) -> &Vec<Polygon> {
+        return &self.polygons;
+    }
+
 }
 
 
 impl BoolOpPerformer {
-    pub fn new(mesh_a_ref: &Mesh, mesh_b_ref: &Mesh) -> BoolOpPerformer {
+
+    /// This method prepares intermediate structures for performing of boolean operations and saves it in the instance of `BoolOpPerformer` structure.
+    /// If meshes don't intersect each other the `Err` will be returned.
+    /// # Arguments
+    ///
+    /// * `mesh_a_ref` - A reference to the first mesh.
+    /// * `mesh_a_ref` - A reference to the second mesh.
+    pub fn new(mesh_a_ref: &Mesh, mesh_b_ref: &Mesh) -> Result<BoolOpPerformer, &'static str> {
         let start = PreciseTime::now();
 
         if log_enabled!(LogLevel::Info) {
-            info!("<BoolOpPerformer::new> is performing ...");
+            info!("----------------------------------------");
+            info!("<BoolOpPerformer::new> is performing ...\n");
         }
 
         let mut mesh_a : Mesh = mesh_a_ref.clone();
         let mut mesh_b : Mesh = mesh_b_ref.clone();
 
+        let m_x_m_start = PreciseTime::now();
+        info!("Intersection of meshes is performing ...");
         let mxm_res = mesh_x_mesh::intersect(&mesh_a, &mesh_b);
+        info!("<mesh_x_mesh::intersect> is finished in {0} seconds.", m_x_m_start.to(PreciseTime::now()));
 
         let mut a_it_to_tdec : HashMap<usize, TDesc> = HashMap::new();
         let mut b_it_to_tdec : HashMap<usize, TDesc> = HashMap::new();
 
         let mxm_res_lst = mxm_res.get_res_list();
-        info!("There are {0} pairs of intersecting triangles.", mxm_res_lst.len());
+        info!("There are {0} pairs of intersecting triangles.\n", mxm_res_lst.len());
+        if mxm_res_lst.len() == 0 {
+            return Err("Meshes don't intersect each other!");
+        }
 
+
+        let td_start = PreciseTime::now();
+        info!("The triangle descriptors are being created ...");
         for (index_a, index_b, res) in  mxm_res_lst{
             mesh_a.remove_triangle(&index_a);
             mesh_b.remove_triangle(&index_b);
@@ -229,13 +268,13 @@ impl BoolOpPerformer {
 
             // первичное добавление точек треугольника
             if mut_ref_tdec_a.len_of_points() == 0 {
-                for p in mesh_a_ref.get_triangle(index_a).points.iter() {
+                for p in mesh_a_ref.get_triangle(index_a).get_points_ref().iter() {
                     mut_ref_tdec_a.add_point(p.clone());
                 }
             }
 
             if mut_ref_tdec_b.len_of_points() == 0 {
-                for p in mesh_b_ref.get_triangle(index_b).points.iter() {
+                for p in mesh_b_ref.get_triangle(index_b).get_points_ref().iter() {
                     mut_ref_tdec_b.add_point(p.clone());
                 }
             }
@@ -266,12 +305,15 @@ impl BoolOpPerformer {
                 _ => {}
             }
         }
+        info!("The triangle descriptors have been created in {0} seconds.\n", td_start.to(PreciseTime::now()));
 
+        let triangulation_start = PreciseTime::now();
+        info!("<triangulate_all> has been started ...");
         let mut new_ts_a : Vec<(Triangle, Marker)> = triangulate_all(a_it_to_tdec);
         let mut new_ts_b : Vec<(Triangle, Marker)> = triangulate_all(b_it_to_tdec);
-
         info!("Triangulated intersection area, for model A, contains {0} triangles.", new_ts_a.len());
         info!("Triangulated intersection area, for model B, contains {0} triangles.", new_ts_b.len());
+        info!("<triangulate_all> has been performed in {0} seconds.\n", triangulation_start.to(PreciseTime::now()));
 
         let mut a_it_to_marker : HashMap<usize, Marker> = HashMap::new();
         let mut b_it_to_marker : HashMap<usize, Marker> = HashMap::new();
@@ -305,14 +347,13 @@ impl BoolOpPerformer {
 
         };
 
+        let dfs_start = PreciseTime::now();
+        info!("<dfs> has been started ...");
         add_triangles(new_ts_a, &mut mesh_a, &mut a_it_to_marker);
         add_triangles(new_ts_b, &mut mesh_b, &mut b_it_to_marker);
         dfs(&mut mesh_a, &mut a_it_to_marker);
         dfs(&mut mesh_b, &mut b_it_to_marker);
-
-        //TODO reverse normals for different bool ops
-
-
+        info!("<dfs> has been performed in {0} seconds.\n", dfs_start.to(PreciseTime::now()));
 
         if log_enabled!(LogLevel::Info) {
             fn print_it_to_marker_num_info(it_to_marker: HashMap<usize, Marker>) {
@@ -353,17 +394,18 @@ impl BoolOpPerformer {
             info!("Resulting mesh B has {0} triangles", mesh_b.num_of_triangles());
 
             info!("<BoolOpPerformer::new> is finished in {0} seconds.\n", start.to(PreciseTime::now()));
+            info!("----------------------------------------");
         }
 
-        BoolOpPerformer {
+        Ok(BoolOpPerformer {
             mesh_a : mesh_a,
             mesh_b : mesh_b,
             a_it_to_marker : a_it_to_marker,
-            b_it_to_marker : b_it_to_marker
-        }
+            b_it_to_marker : b_it_to_marker,
+        })
     }
 
-
+    /// This method perform union-operation and return a resulting mesh.
     pub fn union(&self) -> Mesh {
         let start = PreciseTime::now();
 
@@ -372,17 +414,20 @@ impl BoolOpPerformer {
         }
 
         let mut res_mesh = Mesh::new();
+
         for (it, m) in self.a_it_to_marker.iter() {
             if (*m == Marker::Outer) || (*m == Marker::PlanarPlus) {
                 res_mesh.add_triangle(self.mesh_a.get_triangle(*it));
             }
         }
 
+
         for (it, m) in self.b_it_to_marker.iter() {
-            if (*m == Marker::Outer) || (*m == Marker::PlanarPlus) {
+            if *m == Marker::Outer {
                 res_mesh.add_triangle(self.mesh_b.get_triangle(*it));
             }
         }
+
 
         if log_enabled!(LogLevel::Info) {
             info!("Resulting mesh contains {0} point and {1} triangles", res_mesh.num_of_points(), res_mesh.num_of_triangles());
@@ -392,12 +437,62 @@ impl BoolOpPerformer {
         return res_mesh;
     }
 
+    /// This method perform intersection-operation and return a resulting mesh.
     pub fn intersection(&self) -> Mesh {
-        self.mesh_a.clone()
+        let start = PreciseTime::now();
+
+        if log_enabled!(LogLevel::Info) {
+            info!("Mesh intersection is performing ...");
+        }
+
+        let mut res_mesh = Mesh::new();
+        for (it, m) in self.a_it_to_marker.iter() {
+            if (*m == Marker::Inner) || (*m == Marker::PlanarPlus) {
+                res_mesh.add_triangle(self.mesh_a.get_triangle(*it));
+            }
+        }
+
+        for (it, m) in self.b_it_to_marker.iter() {
+            if *m == Marker::Inner {
+                res_mesh.add_triangle(self.mesh_b.get_triangle(*it));
+            }
+        }
+
+        if log_enabled!(LogLevel::Info) {
+            info!("Resulting mesh contains {0} point and {1} triangles", res_mesh.num_of_points(), res_mesh.num_of_triangles());
+            info!("Mesh intersection is finished in {0} seconds.\n", start.to(PreciseTime::now()));
+        }
+
+        return res_mesh;
     }
 
+    /// This method perform difference-operation and return a resulting mesh.
     pub fn difference(&self) -> Mesh {
-        self.mesh_a.clone()
+        let start = PreciseTime::now();
+
+        if log_enabled!(LogLevel::Info) {
+            info!("Mesh difference is performing ...");
+        }
+
+        let mut res_mesh = Mesh::new();
+        for (it, m) in self.a_it_to_marker.iter() {
+            if (*m == Marker::Outer) || (*m == Marker::PlanarMinus) {
+                res_mesh.add_triangle(self.mesh_a.get_triangle(*it));
+            }
+        }
+
+        for (it, m) in self.b_it_to_marker.iter() {
+            if *m == Marker::Inner {
+                res_mesh.add_triangle(self.mesh_b.get_reversed_triangle(*it));
+            }
+        }
+
+        if log_enabled!(LogLevel::Info) {
+            info!("Resulting mesh contains {0} point and {1} triangles", res_mesh.num_of_points(), res_mesh.num_of_triangles());
+            info!("Mesh difference is finished in {0} seconds.\n", start.to(PreciseTime::now()));
+        }
+
+        return res_mesh;
     }
 }
 
@@ -414,12 +509,14 @@ mod tests {
         Difference
     }
 
-    fn bool_op_test(input_file_name_a: &str,
-                    input_file_name_b: &str,
-                    inter_res_a_file_name: &str,
-                    inter_res_b_file_name: &str,
-                    output_file_name: &str,
-                    op_type: BoolOpType) {
+    macro_rules! pattern_str {
+        () =>  ("res_of_tests/simple_bool_op/{0}/{1}")
+    }
+
+    fn bool_op_test(input_file_name_a: &str, input_file_name_b: &str,
+                    test_index: usize,
+                    operations: Vec<BoolOpType>
+    ) {
         env_logger_init().unwrap_or_else(|x| ->  () {});
 
         let mut fa = File::open(input_file_name_a).unwrap();
@@ -427,52 +524,83 @@ mod tests {
         let ma : Mesh = Mesh::read_stl(& mut fa).unwrap();
         let mb : Mesh = Mesh::read_stl(& mut fb).unwrap();
 
-
-        let bool_op_performer : BoolOpPerformer = BoolOpPerformer::new(&ma, &mb);
-
+        let inter_res_a_file_name = format!(pattern_str!(), test_index, "inter_a.stl");
+        let bool_op_performer : BoolOpPerformer = BoolOpPerformer::new(&ma, &mb).expect("The error was raised!");
         let mut ia_f = File::create(inter_res_a_file_name).unwrap();
         match bool_op_performer.mesh_a.write_stl(&mut ia_f) {
             Ok(_) => (),
             Err(_) => panic!("Can not write into file!")
         };
 
+        let inter_res_b_file_name = format!(pattern_str!(), test_index, "inter_b.stl");
         let mut ib_f = File::create(inter_res_b_file_name).unwrap();
         match bool_op_performer.mesh_b.write_stl(&mut ib_f) {
             Ok(_) => (),
             Err(_) => panic!("Can not write into file!")
         };
 
-        let mut m = match op_type {
-            BoolOpType::Union => bool_op_performer.union(),
-            BoolOpType::Difference => bool_op_performer.difference(),
-            BoolOpType::Intersection => bool_op_performer.intersection()
-        };
+        for op_type in operations {
+            let mut m = match op_type {
+                BoolOpType::Union => bool_op_performer.union(),
+                BoolOpType::Difference => bool_op_performer.difference(),
+                BoolOpType::Intersection => bool_op_performer.intersection()
+            };
 
-        let mut f = File::create(output_file_name).unwrap();
-        match m.write_stl(&mut f) {
-            Ok(_) => (),
-            Err(_) => panic!("Can not write into file!")
-        };
+            let output_file_name = match op_type {
+                BoolOpType::Union => format!(pattern_str!(), test_index, "union_res.stl"),
+                BoolOpType::Difference => format!(pattern_str!(), test_index, "difference_res.stl"),
+                BoolOpType::Intersection => format!(pattern_str!(), test_index, "intersection_res.stl")
+            };
+
+            let mut f = File::create(output_file_name).unwrap();
+            match m.write_stl(&mut f) {
+                Ok(_) => (),
+                Err(_) => panic!("Can not write into file!")
+            };
+        }
     }
 
     #[test]
-    fn zero_union_test() {
-        bool_op_test("input_for_tests/plane1.stl",
-                     "input_for_tests/plane2.stl",
-                     "res_of_tests/simple_bool_op/union_test0_inter_a.stl",
-                     "res_of_tests/simple_bool_op/union_test0_inter_b.stl",
-                     "res_of_tests/simple_bool_op/union_test0.stl",
-                     BoolOpType::Union);
+    fn test0() {
+        bool_op_test("input_for_tests/plane2.stl",
+                     "input_for_tests/plane1.stl",
+                     0, vec![BoolOpType::Union]);
     }
 
     #[test]
-    fn first_union_test() {
+    fn test1() {
         bool_op_test("input_for_tests/cube_in_origin.stl",
                    "input_for_tests/scaled_shifted_cube.stl",
-                   "res_of_tests/simple_bool_op/union_test1_inter_a.stl",
-                   "res_of_tests/simple_bool_op/union_test1_inter_b.stl",
-                   "res_of_tests/simple_bool_op/union_test1.stl",
-                    BoolOpType::Union);
+                   1, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection]);
+    }
+
+    #[test]
+    fn test2() {
+        //cargo test first_union_test -- --nocapture
+        bool_op_test("input_for_tests/cube_in_origin.stl",
+                   "input_for_tests/long_scaled_shifted_cube.stl",
+                   2, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection]);
+    }
+
+    #[test]
+    fn test3() {
+        bool_op_test("input_for_tests/sphere_in_origin.stl",
+                     "input_for_tests/long_scaled_shifted_cube.stl",
+                     3, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection]);
+    }
+
+    #[test]
+    fn test4() {
+        bool_op_test("input_for_tests/sphere_in_origin.stl",
+                   "input_for_tests/cone_in_origin.stl",
+                   4, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection]);
+    }
+
+    #[test]
+    fn test5() {
+        bool_op_test("input_for_tests/cube_in_origin.stl",
+                     "input_for_tests/skew_cube_in_origin.stl",
+                     5, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection]);
     }
 
 }

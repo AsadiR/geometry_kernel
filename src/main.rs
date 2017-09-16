@@ -1,39 +1,23 @@
 extern crate geometry_kernel;
-extern crate num;
-extern crate bidir_map;
-extern crate test;
-
-#[macro_use]
-extern crate log;
-extern crate env_logger;
-use log::LogLevel;
-
-use test::Bencher;
-
-
-use geometry_kernel::primitives::{mesh, number};
-use std::io::Cursor;
+use geometry_kernel::primitives::mesh::Mesh;
+use geometry_kernel::bool_op::BoolOpPerformer;
 use std::fs::File;
 
-use bidir_map::BidirMap;
-use std::collections::BTreeMap;
-use std::collections::BTreeSet;
-
 fn main() {
-    env_logger::init().unwrap();
+    let mut f_a = File::open("input_for_tests/cube_in_origin.stl").unwrap();
+    let mesh_a = Mesh::read_stl(&mut f_a).unwrap();
 
-    // let num = number::new(0.333);
-    // println!("value: {}", num);
+    let mut f_b = File::open("input_for_tests/long_scaled_shifted_cube.stl").unwrap();
+    let mesh_b = Mesh::read_stl(&mut f_b).unwrap();
 
-    let mut f = File::open("input_for_tests/skull.stl").unwrap();
-    let mesh = mesh::Mesh::read_stl(&mut f).unwrap();
+    let performer = BoolOpPerformer::new(&mesh_a, &mesh_b).expect("The error was raised in a constructor of <BoolOpPerformer>!");
+    let union_res = performer.union();
 
-    let mut f = File::create("res_of_tests/import_export/skull_new.stl").unwrap();
-    match mesh.write_stl(&mut f) {
+    let mut f_res= File::create("res_of_tests/simple_bool_op/main/union_res.stl").unwrap();
+    match union_res.write_stl(&mut f_res) {
         Ok(_) => (),
         Err(_) => panic!()
     };
-
 }
 
 
