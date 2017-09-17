@@ -1,33 +1,38 @@
-
-use std::ops::Add;
-use std::ops::Sub;
-use std::fmt;
 use primitives::vector;
-use primitives::number;
+use primitives::number_trait;
 use std::cmp::Ordering;
 use std::f64::consts::PI;
 use std::mem::swap;
 use log::LogLevel;
-use primitives::number::NumberTrait;
+use primitives::number::*;
+
+// for template constraint
 use primitives::signed_trait::Signed;
+use primitives::zero_trait::Zero;
+use std::fmt::Debug;
+use std::hash::Hash;
+use std::ops::{Add, Sub, Mul, Div, Neg};
+use std::cmp::Ord;
+use std::fmt;
 
 
 /// This structure describes a point in a 3D space.
 #[derive(Clone)]
 #[derive(Hash)]
-pub struct Point {
-    pub x: number::Number,
-    pub y: number::Number,
-    pub z: number::Number
+pub struct Point
+{
+    pub x: Number,
+    pub y: Number,
+    pub z: Number
 }
 
 impl fmt::Debug for Point {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // write!(f, "Point [{:?}, {:?}, {:?}]", self.x.clone().convert_to_f32(), self.y.clone().convert_to_f32(), self.z.clone().convert_to_f32())
         write!(f, "Point [{0} <{1}>, {2} <{3}>, {4}<{5}>]",
-               self.x, self.x.clone().convert_to_f32(),
-               self.y, self.y.clone().convert_to_f32(),
-               self.z, self.z.clone().convert_to_f32())
+               self.x.value, self.x.clone().convert_to_f32(),
+               self.y.value, self.y.clone().convert_to_f32(),
+               self.z.value, self.z.clone().convert_to_f32())
     }
 }
 
@@ -60,7 +65,7 @@ impl Point {
     /// * `x` - A `Number` representing the x coordinate.
     /// * `y` - A `Number` representing the y coordinate.
     /// * `z` - A `Number` representing the z coordinate.
-    pub fn new(x : number::Number, y : number::Number, z : number::Number) -> Point {
+    pub fn new(x : Number, y : Number, z : Number) -> Point {
         Point{x: x, y: y, z: z}
     }
 
@@ -71,7 +76,7 @@ impl Point {
     /// * `y` - A `f64` representing the y coordinate.
     /// * `z` - A `f64` representing the z coordinate.
     pub fn new_from_f64(x : f64, y : f64, z : f64) -> Point {
-        Point{x: number::new(x), y: number::new(y), z: number::new(z)}
+        Point{x: Number::new(x), y: Number::new(y), z: Number::new(z)}
     }
 
     pub(crate) fn swap_yz(& mut self) {
@@ -169,28 +174,28 @@ impl PartialOrd for Point {
 
 #[cfg(test)]
 mod tests {
-    use primitives::number;
+    use primitives::number::*;
     use primitives::vector;
     use primitives::point;
 
     #[test]
     fn point_plus_vector() {
-        let p = point::Point {x: number::new(1.0), y: number::new(1.0), z: number::new(1.0)};
-        let v = vector::Vector {x: number::new(1.0), y: number::new(1.0), z: number::new(1.0)};
+        let p = point::Point {x: Number::new(1.0), y: Number::new(1.0), z: Number::new(1.0)};
+        let v = vector::Vector {x: Number::new(1.0), y: Number::new(1.0), z: Number::new(1.0)};
         let new_p1 = p.clone() + v.clone();
         let new_p2 = p + v;
-        let expected_p = point::Point {x: number::new(2.0), y: number::new(2.0), z: number::new(2.0)};
+        let expected_p = point::Point {x: Number::new(2.0), y: Number::new(2.0), z: Number::new(2.0)};
         assert!(new_p1 == new_p2);
         assert!(new_p1 == expected_p);
     }
 
     #[test]
     fn point_subtract_point() {
-        let end = point::Point {x: number::new(1.0), y: number::new(1.0), z: number::new(1.0)};
-        let begin = point::Point {x: number::new(2.0), y: number::new(2.0), z: number::new(2.0)};
+        let end = point::Point {x: Number::new(1.0), y: Number::new(1.0), z: Number::new(1.0)};
+        let begin = point::Point {x: Number::new(2.0), y: Number::new(2.0), z: Number::new(2.0)};
         let v = end.clone() - begin.clone();
         let new_v = end - begin;
-        let expected_v = vector::Vector {x: number::new(-1.0), y: number::new(-1.0), z: number::new(-1.0)};
+        let expected_v = vector::Vector {x: Number::new(-1.0), y: Number::new(-1.0), z: Number::new(-1.0)};
         assert!(v == new_v);
         assert!(v == expected_v);
     }

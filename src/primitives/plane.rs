@@ -1,6 +1,6 @@
 use primitives::vector::Vector;
 use primitives::point::Point;
-use primitives::Number;
+use primitives::number::Number;
 use primitives::zero_trait::Zero;
 use std::mem::swap;
 

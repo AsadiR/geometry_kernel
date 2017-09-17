@@ -18,6 +18,7 @@ opt-level = 0 # Отключаем оптимизацию кода;
 
 [dependencies]
 num = "0.1.39"
+rust-gmp = "0.5.0"
 time = "*"
 lazy_static = "*"
 bidir-map = "0.3.2"

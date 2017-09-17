@@ -1,7 +1,7 @@
 use primitives::point::Point;
 use primitives::plane::Plane;
 use primitives::vector::Vector;
-use primitives::number;
+use primitives::number::*;
 use primitives::zero_trait::Zero;
 use primitives::signed_trait::Signed;
 use primitives::segment::Segment;
@@ -92,7 +92,7 @@ impl Triangle {
 
     pub(crate) fn reverse(&mut self) {
         self.points.swap(0, 1);
-        self.normal = Some(self.normal.clone().unwrap() * number::new(-1.));
+        self.normal = Some(self.normal.clone().unwrap() * Number::new(-1.));
     }
 
     pub(crate) fn does_triangle_contain_point(&self, p : &Point) -> bool {
@@ -120,7 +120,7 @@ impl Triangle {
         let dot12 = v1.dot_product(&v2);
 
         // Compute barycentric coordinates
-        let inv_denom = number::new(1.) / (&dot00 * &dot11 - &dot01 * &dot01);
+        let inv_denom = Number::new(1.) / (&dot00 * &dot11 - &dot01 * &dot01);
         let u = (&dot11 * &dot02 - &dot01 * &dot12) * &inv_denom;
         let v = (&dot00 * &dot12 - &dot01 * &dot02) * &inv_denom;
 
@@ -130,7 +130,7 @@ impl Triangle {
         // Check if point is in triangle
         return (u.is_it_positive() || u.is_it_zero()) &&
             (v.is_it_positive() || v.is_it_zero()) &&
-            (u + v <= number::new(1.))
+            (u + v <= Number::new(1.))
     }
 
     /// This method checks the triangle and returns:

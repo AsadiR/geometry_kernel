@@ -1,8 +1,8 @@
 use primitives::point::Point;
 use primitives::vector::Vector;
 use primitives::line::Line;
-use primitives::number;
-use primitives::number::NumberTrait;
+use primitives::number_trait;
+use primitives::number_trait::NumberTrait;
 use primitives::zero_trait::Zero;
 
 use std::fmt;

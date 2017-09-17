@@ -1,23 +1,25 @@
-use std::ops::Add;
-use std::ops::Sub;
-use std::ops::Mul;
-use std::fmt;
 use primitives::point;
-use primitives::number;
-use primitives::number::NumberTrait;
+use primitives::number::*;
 use std::mem::swap;
 
-//use core::num::Float;
-//use std::num::Float;
+
+use primitives::signed_trait::Signed;
+use primitives::zero_trait::Zero;
+use std::fmt::Debug;
+use std::hash::Hash;
+use std::ops::{Add, Sub, Mul, Div, Neg};
+use std::cmp::Ord;
+use std::fmt;
 
 
 /// This structure repsresents a 3D vector.
 #[derive(Hash)]
 #[derive(Clone)]
-pub struct Vector {
-    pub x: number::Number,
-    pub y: number::Number,
-    pub z: number::Number
+pub struct Vector
+{
+    pub x: Number,
+    pub y: Number,
+    pub z: Number
 }
 
 impl fmt::Debug for Vector {
@@ -27,7 +29,7 @@ impl fmt::Debug for Vector {
 }
 
 lazy_static! {
-    static ref  ZERO : Vector = Vector {x: number::new(0.), y: number::new(0.), z: number::new(0.)};
+    static ref  ZERO : Vector = Vector {x: Number::new(0.), y: Number::new(0.), z: Number::new(0.)};
 }
 
 
@@ -37,7 +39,7 @@ impl Vector {
     /// # Arguments
     ///
     /// * `other` - The `Vector` to multiply on.
-    pub fn dot_product(&self, other: &Vector) -> number::Number {
+    pub fn dot_product(&self, other: &Vector) -> Number {
         &self.x*&other.x + &self.y*&other.y + &self.z*&other.z
     }
 
@@ -56,7 +58,7 @@ impl Vector {
     /// # Arguments
     ///
     /// * `other` - The `Vector` to multiply on.
-    pub fn mixed_product(&self, a: &Vector, b: &Vector) -> number::Number {
+    pub fn mixed_product(&self, a: &Vector, b: &Vector) -> Number {
         self.dot_product(&(a.cross_product(b)))
     }
 
@@ -88,7 +90,7 @@ impl Vector {
     /// * `x` - A `Number` representing the x coordinate.
     /// * `y` - A `Number` representing the y coordinate.
     /// * `z` - A `Number` representing the z coordinate.
-    pub fn new(x : number::Number, y : number::Number, z : number::Number) -> Vector {
+    pub fn new(x : Number, y : Number, z : Number) -> Vector {
         Vector {x:x, y:y, z:z}
     }
 
@@ -99,11 +101,11 @@ impl Vector {
     /// * `y` - A `f64` representing the y coordinate.
     /// * `z` - A `f64` representing the z coordinate.
     pub fn new_from_f64(x : f64, y : f64, z : f64) -> Vector {
-        Vector {x: number::new(x), y: number::new(y), z: number::new(z)}
+        Vector {x: Number::new(x), y: Number::new(y), z: Number::new(z)}
     }
 
     /// This method returns a square length of the `Vector`.
-    pub fn length2(&self) -> number::Number {
+    pub fn length2(&self) -> Number {
         &self.x*&self.x + &self.y*&self.y + &self.z*&self.z
     }
 
@@ -153,18 +155,18 @@ impl Sub<Vector> for Vector {
     }
 }
 
-impl Mul<number::Number> for Vector {
+impl Mul<Number> for Vector {
     type Output = Vector;
 
-    fn mul(self, other: number::Number) -> Vector {
+    fn mul(self, other: Number) -> Vector {
         Vector { x: self.x*&other, y: self.y*&other, z: self.z*&other }
     }
 }
 
-impl<'a> Mul<number::Number> for &'a Vector {
+impl<'a> Mul<Number> for &'a Vector {
     type Output = Vector;
 
-    fn mul(self, other: number::Number) -> Vector {
+    fn mul(self, other: Number) -> Vector {
         Vector { x: &self.x*&other, y: &self.y*&other, z: &self.z*&other }
     }
 }
@@ -178,53 +180,53 @@ impl fmt::Display for Vector {
 
 #[cfg(test)]
 mod tests {
-    use primitives::number;
+    use primitives::number::*;
     use primitives::vector;
     use primitives::point;
 
     #[test]
     fn vector_plus_vector() {
-        let v1 = vector::Vector {x: number::new(1.0), y: number::new(1.0), z: number::new(1.0)};
-        let v2 = vector::Vector {x: number::new(2.0), y: number::new(1.0), z: number::new(2.0)};
+        let v1 = vector::Vector {x: Number::new(1.0), y: Number::new(1.0), z: Number::new(1.0)};
+        let v2 = vector::Vector {x: Number::new(2.0), y: Number::new(1.0), z: Number::new(2.0)};
         let new_v = v1 + v2;
-        let expected_v = vector::Vector {x: number::new(3.0), y: number::new(2.0), z: number::new(3.0)};
+        let expected_v = vector::Vector {x: Number::new(3.0), y: Number::new(2.0), z: Number::new(3.0)};
         assert!(new_v == expected_v);
     }
 
     #[test]
     fn vector_minus_vector() {
-        let v1 = vector::Vector {x: number::new(1.0), y: number::new(1.0), z: number::new(1.0)};
-        let v2 = vector::Vector {x: number::new(2.0), y: number::new(1.0), z: number::new(2.0)};
+        let v1 = vector::Vector {x: Number::new(1.0), y: Number::new(1.0), z: Number::new(1.0)};
+        let v2 = vector::Vector {x: Number::new(2.0), y: Number::new(1.0), z: Number::new(2.0)};
         let new_v = v2 - v1;
-        let expected_v = vector::Vector {x: number::new(1.0), y: number::new(0.0), z: number::new(1.0)};
+        let expected_v = vector::Vector {x: Number::new(1.0), y: Number::new(0.0), z: Number::new(1.0)};
         assert!(new_v == expected_v);
     }
 
     #[test]
     fn vector_dp_vector() {
-        let v1 = vector::Vector {x: number::new(1.0), y: number::new(1.0), z: number::new(1.0)};
-        let v2 = vector::Vector {x: number::new(2.0), y: number::new(1.0), z: number::new(2.0)};
+        let v1 = vector::Vector {x: Number::new(1.0), y: Number::new(1.0), z: Number::new(1.0)};
+        let v2 = vector::Vector {x: Number::new(2.0), y: Number::new(1.0), z: Number::new(2.0)};
         let dp = v2.dot_product(&v1);
-        let expected_dp = number::new(5.0);
+        let expected_dp = Number::new(5.0);
         assert!(dp == expected_dp);
     }
 
     #[test]
     fn vector_cp_vector() {
-        let v1 = vector::Vector {x: number::new(1.0), y: number::new(1.0), z: number::new(1.0)};
-        let v2 = vector::Vector {x: number::new(2.0), y: number::new(1.0), z: number::new(2.0)};
+        let v1 = vector::Vector {x: Number::new(1.0), y: Number::new(1.0), z: Number::new(1.0)};
+        let v2 = vector::Vector {x: Number::new(2.0), y: Number::new(1.0), z: Number::new(2.0)};
         let d = v2.cross_product(&v1);
         let v1_dp_d = v1.dot_product(&d);
         let v2_dp_d = v2.dot_product(&d);
-        assert!(v1_dp_d == number::new(0.0));
-        assert!(v2_dp_d == number::new(0.0));
+        assert!(v1_dp_d == Number::new(0.0));
+        assert!(v2_dp_d == Number::new(0.0));
     }
 
     #[test]
     fn mp_of_three_vectors() {
-        let a = vector::Vector {x: number::new(2.0), y: number::new(0.0), z: number::new(0.0)};
-        let b = vector::Vector {x: number::new(2.0), y: number::new(1.0), z: number::new(0.0)};
-        let c = vector::Vector {x: number::new(2.0), y: number::new(1.0), z: number::new(3.0)};
+        let a = vector::Vector {x: Number::new(2.0), y: Number::new(0.0), z: Number::new(0.0)};
+        let b = vector::Vector {x: Number::new(2.0), y: Number::new(1.0), z: Number::new(0.0)};
+        let c = vector::Vector {x: Number::new(2.0), y: Number::new(1.0), z: Number::new(3.0)};
         let mp_abc = a.mixed_product(&b, &c);
         let mp_cab = c.mixed_product(&a, &b);
         let mp_bca = b.mixed_product(&c, &a);

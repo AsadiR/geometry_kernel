@@ -31,7 +31,7 @@ impl Marker {
 }
 
 /// This structure keeps intermediate information, necessary for performing of boolean operations and have methods to perform such operations.
-/// It's still in a process of being created, so it is pretty slow and unreliable.
+/// It's still in a process of being created, so it is unreliable.
 /// It's recommended to perform boolean operations only for simple objects.
 pub struct BoolOpPerformer {
     mesh_a : Mesh,

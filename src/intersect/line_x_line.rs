@@ -25,7 +25,7 @@ pub fn intersect(a : &Line, b : &Line) -> (Option<Point>, InfoLxL) {
 
     //Are lines skew?
     let mp = m.mixed_product(&l1, &l2);
-    if mp != number::zero() {
+    if mp != Number::zero() {
         return (None, InfoLxL::Skew);
     }
 
@@ -61,7 +61,7 @@ pub fn intersect(a : &Line, b : &Line) -> (Option<Point>, InfoLxL) {
     //I can improve it!
     let nv = l1.cross_product(&l2);
 
-    let mut a : Matrix<Number> =Matrix::new_from_vector(
+    let mut a : Matrix<Number> = Matrix::new_from_vector(
         vec![Row::new_from_vector(vec![l1.x.clone(), -l2.x.clone(), nv.x.clone()]),
              Row::new_from_vector(vec![l1.y.clone(), -l2.y.clone(), nv.y.clone()]),
              Row::new_from_vector(vec![l1.z.clone(), -l2.z.clone(), nv.z.clone()])]);
@@ -96,7 +96,7 @@ pub fn intersect_p(a : &Line, b : &Line) -> Option<Number> {
     }
 
     let mp = m.mixed_product(&l1, &l2);
-    if mp != number::zero() {
+    if mp != Number::zero() {
         return None;
     }
 

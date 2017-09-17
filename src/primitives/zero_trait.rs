@@ -11,16 +11,6 @@ pub trait Zero<T> {
     fn zero() -> T;
 }
 
-impl Zero<BigRational> for BigRational {
-    fn is_it_zero(&self) -> bool {
-        self.is_zero()
-    }
-
-    fn zero() -> BigRational {
-        num::zero()
-    }
-}
-
 impl Zero<f32> for f32 {
     fn is_it_zero(&self) -> bool {
         *self == 0.

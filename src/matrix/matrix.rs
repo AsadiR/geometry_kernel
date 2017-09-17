@@ -293,15 +293,15 @@ mod tests {
     #[test]
     fn solver_test_rational1() {
         let n = 3;
-        let mut m : Matrix<number::Number> = Matrix::new_from_vector(
+        let mut m : Matrix<Number> = Matrix::new_from_vector(
             vec![
-                Row::new_from_vector(vec![number::new_from_f32(1.), number::new_from_f32(2.), number::new_from_f32(3.)]),
-                Row::new_from_vector(vec![number::new_from_f32(1.), number::new_from_f32(3.), number::new_from_f32(3.)]),
-                Row::new_from_vector(vec![number::new_from_f32(0.), number::new_from_f32(1.), number::new_from_f32(1.)])
+                Row::new_from_vector(vec![Number::new_from_f32(1.), Number::new_from_f32(2.), Number::new_from_f32(3.)]),
+                Row::new_from_vector(vec![Number::new_from_f32(1.), Number::new_from_f32(3.), Number::new_from_f32(3.)]),
+                Row::new_from_vector(vec![Number::new_from_f32(0.), Number::new_from_f32(1.), Number::new_from_f32(1.)])
             ]
         );
 
-        let mut b : Row<number::Number> = Row::new_from_vector(vec![number::new_from_f32(9.), number::new_from_f32(11.), number::new_from_f32(3.)]);
+        let mut b : Row<Number> = Row::new_from_vector(vec![Number::new_from_f32(9.), Number::new_from_f32(11.), Number::new_from_f32(3.)]);
 
         let x  = m.solve(b);
 
@@ -309,7 +309,7 @@ mod tests {
         for i in 0..n {
             // println!("x[{0}] = {1}", i, x.get(&i));
         }
-        assert!(x.values == vec![number::new_from_f32(2.), number::new_from_f32(2.), number::new_from_f32(1.)]);
+        assert!(x.values == vec![Number::new_from_f32(2.), Number::new_from_f32(2.), Number::new_from_f32(1.)]);
 
     }
 }

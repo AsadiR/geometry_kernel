@@ -58,13 +58,13 @@ pub fn intersect(plane1 : &Plane, plane2 : &Plane) -> (Option<Line>, InfoPxP) {
 
     let mut last_row : Row<Number> = match 1 {
         _ if !a.z.is_it_zero() =>
-            Row::new_from_vector(vec![number::new(0.),  number::new(0.),  number::new(1.)]),
+            Row::new_from_vector(vec![Number::new(0.), Number::new(0.), Number::new(1.)]),
 
         _ if !a.y.is_it_zero() =>
-            Row::new_from_vector(vec![number::new(0.),  number::new(1.),  number::new(0.)]),
+            Row::new_from_vector(vec![Number::new(0.), Number::new(1.), Number::new(0.)]),
 
         _  =>
-            Row::new_from_vector(vec![number::new(1.),  number::new(0.),  number::new(0.)])
+            Row::new_from_vector(vec![Number::new(1.), Number::new(0.), Number::new(0.)])
     };
 
     let mv = vec![

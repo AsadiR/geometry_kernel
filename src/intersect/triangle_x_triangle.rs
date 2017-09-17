@@ -73,9 +73,6 @@ pub fn intersect(tr1 : &Triangle, tr2 : &Triangle) -> ResTxT {
     let dist2 = signed_distance(tr1.get_ref(1), &plane2);
     let dist3 = signed_distance(tr1.get_ref(2), &plane2);
 
-    //println!("plane2.normal = {} \n plane2.point = {} ", plane2.normal, plane2.point);
-    //println!("d1 = {} \n d2 = {} \n d3 = {} \n", dist1, dist2, dist3);
-
     if dist1.is_it_zero() & dist2.is_it_zero() & dist3.is_it_zero() {
         let polygon = intersect_triangles_in_the_plane(tr1, tr2);
         if polygon.points.len() == 0 {
@@ -129,7 +126,6 @@ pub fn intersect(tr1 : &Triangle, tr2 : &Triangle) -> ResTxT {
         },
         (None, Some(s1), None, Some(s2)) => {
             let res = segment_x_segment::intersect_segments_on_the_line(&s1, &s2);
-            // println!("res: {:?}", res);
             match res {
                 (None, Some(s), segment_x_segment::InfoSxS::IntersectingInASegment) => {
                     return ResTxT::new(None, Some(s), None, InfoTxT::Intersecting);
@@ -170,17 +166,13 @@ pub fn intersect_line_and_triangle(line : &Line, tr : &Triangle) -> (Option<Poin
 
     let mut set : BTreeSet<PointWrapper> = BTreeSet::new();
 
-    //println!("Line: {:?}", line);
-    //println!("ILT loop:");
     for s in ss {
         let res = line_x_segment::intersect(line, &s);
         match res {
             (Some(point), None, line_x_segment::InfoLxS::IntersectingInAPoint) => {
-                //println!("\t{:?}", point);
                 set.insert(PointWrapper::new(point, &segment_of_line));
             },
             (None, Some(segment), line_x_segment::InfoLxS::IntersectingInASegment) => {
-                //println!("\t{:?}", segment);
                 let Segment {org, dest} = segment;
                 set.insert(PointWrapper::new(org, &segment_of_line));
                 set.insert(PointWrapper::new(dest, &segment_of_line));
@@ -198,10 +190,8 @@ pub fn intersect_line_and_triangle(line : &Line, tr : &Triangle) -> (Option<Poin
         return (Some(v.remove(0)), None);
     } else {
         let mut v : Vec<Point> = Vec::new();
-        //println!("Following points on the line:");
         for pw in set.into_iter() {
             let p = pw.extract_point();
-            //println!("\t{:?}", p);
             v.push(p);
         }
         return (None, Some(Segment::new(v.remove(0), v.pop().unwrap())));
@@ -232,7 +222,6 @@ impl PointDirGraph {
         for set in sets {
             let mut previous_pw : Option<PointWrapper> = None;
             for pw in set {
-                // println!("{:?}", pw.point);
 
                 if previous_pw.is_none() {
                     previous_pw = Some(pw);
@@ -241,7 +230,6 @@ impl PointDirGraph {
                     previous_pw = Some(pw);
                 }
             }
-            // println!();
         }
     }
 
@@ -345,14 +333,11 @@ impl PointDirGraph {
 
 fn update_map(point_to_verdict : &mut HashMap<Point, bool>, tr1 : &Triangle, tr2 : &Triangle, p : &Point) {
     if !point_to_verdict.contains_key(&p) {
-        //println!("tr1 {0}", tr1.does_triangle_contain_point(&p));
-        //println!("tr2 {0}", tr2.does_triangle_contain_point(&p));
         point_to_verdict.insert(
             p.clone(),
             tr1.does_triangle_contain_point(&p) && tr2.does_triangle_contain_point(&p)
         );
     }
-    // println!("{:?}", point_to_verdict);
 }
 
 pub fn intersect_triangles_in_the_plane(tr1: &Triangle, tr2: &Triangle) -> Polygon {
@@ -396,7 +381,7 @@ pub fn intersect_triangles_in_the_plane(tr1: &Triangle, tr2: &Triangle) -> Polyg
     point_to_verdict.insert(tr2.get(2), t2_p2_in_t1);
 
 
-    let pd_graph                                                                                                                                                                 = PointDirGraph::new(tr1, tr2);
+    let pd_graph = PointDirGraph::new(tr1, tr2);
     let mut index_of_prev : Option<usize> = None;
     let mut index_of_first : Option<usize> = None;
 
@@ -410,7 +395,6 @@ pub fn intersect_triangles_in_the_plane(tr1: &Triangle, tr2: &Triangle) -> Polyg
                 if point_to_verdict[p] {
                     index_of_first = Some(i);
                     index_of_prev = Some(i);
-                    // println!("first {0}", i);
                     return Some(p.clone());
                 } else {
                     continue
@@ -419,8 +403,6 @@ pub fn intersect_triangles_in_the_plane(tr1: &Triangle, tr2: &Triangle) -> Polyg
             return None;
         } else {
             for index_of_suc in pd_graph.edges[index_of_prev.unwrap()].iter() {
-                // println!("index_of_suc {0}", index_of_suc);
-
                 let p : &Point = pd_graph.points.get(*index_of_suc).unwrap();
                 update_map(&mut point_to_verdict, tr1, tr2, p);
                 if point_to_verdict[p] {
@@ -441,7 +423,6 @@ pub fn intersect_triangles_in_the_plane(tr1: &Triangle, tr2: &Triangle) -> Polyg
 
     loop {
         let op : Option<Point> = get_next();
-        //println!("op {:?}", op);
         if op.is_some() {
             polygon.add_point(op.unwrap());
         } else {
@@ -521,7 +502,6 @@ mod tests {
 
         let polygon : Polygon = triangle_x_triangle::intersect_triangles_in_the_plane(&tr1, &tr2);
 
-        // println!("{:?}", polygon);
         assert!(polygon.points.len() == 3);
     }
 
@@ -633,8 +613,6 @@ mod tests {
         let p3 = Point::new_from_f64(1., 1., 10.);
         let tr2 = Triangle::new(vec![p1,p2,p3]);
 
-        //println!("tr1: {:?},\n tr2 {:?}", tr1, tr2);
-
         let res = triangle_x_triangle::intersect(&tr1, &tr2);
 
         if let (Option::None, Option::None, Option::None, triangle_x_triangle::InfoTxT::Collinear) = res.clone().get_tuple()  {
@@ -661,10 +639,7 @@ mod tests {
 
         let es = Segment {org: ep1, dest: ep2};
 
-        //println!("tr1: {:?},\n tr2 {:?}", tr1, tr2);
-
         let res = triangle_x_triangle::intersect(&tr1, &tr2);
-        //println!("{:?}", res);
 
         if let (Option::None, Some(s), Option::None, triangle_x_triangle::InfoTxT::Intersecting) = res.clone().get_tuple()  {
             if s != es {
@@ -691,8 +666,6 @@ mod tests {
         let ep2 = Point::new_from_f64(1., 1., 0.);
 
         let es = Segment {org: ep1, dest: ep2};
-
-        //println!("tr1: {:?},\n tr2 {:?}", tr1, tr2);
 
         let res = triangle_x_triangle::intersect(&tr1, &tr2);
 
@@ -748,39 +721,11 @@ mod tests {
 
 
         if let (None, Some(s), None, triangle_x_triangle::InfoTxT::Intersecting) = res.clone().get_tuple()  {
-            println!("{:?}", s);
+
         } else {
             panic!("Wrong info: {:?}", res.get_info());
         };
     }
 
-    #[test]
-    fn intersect_triangles_bug_test3() {
-        /*
-        test 5
-        m_x_m 9 8
-        Triangle { points: [Point [2, 4, 0.26519018], Point [2, -4, 2], Point [2, 4, 2]], normal: Some(Point [-13.878479, 0, 0]) }
-        Triangle { points: [Point [2, 12.148916, 2], Point [2, -6.64027, 2], Point [2, -6.64027, -2]], normal: Some(Point [75.156746, 0, 0]) }
-        */
-        let p1 = Point::new_from_f64(2., 4., 0.26519018);
-        let p2 = Point::new_from_f64(2., -4., 2.);
-        let p3 = Point::new_from_f64(2., 4., 2.);
-        let tr1 = Triangle::new(vec![p1,p2,p3]);
-
-        let p1 = Point::new_from_f64(2., 12.148916, 2.);
-        let p2 = Point::new_from_f64(2., -6.64027, 2.);
-        let p3 = Point::new_from_f64(2., -6.64027, -2.);
-        let tr2 = Triangle::new(vec![p1,p2,p3]);
-
-        let ep = Point::new_from_f64(-2., 2., 0.);
-
-        let res : triangle_x_triangle::ResTxT = triangle_x_triangle::intersect(&tr2, &tr1);
-
-        println!("res {:?}", res.get_info());
-
-    }
-
-
-    //TODO: tests for intersection of triangles
 }
 

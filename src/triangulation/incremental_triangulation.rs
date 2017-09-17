@@ -257,7 +257,7 @@ fn classify_normal(n : &Vector) -> NormalType {
 
 fn get_segment_normal(s : &Segment, plane: &Plane) -> Line {
     let e : Vector = &s.dest - &s.org;
-    let M : Point = s.org.clone() + e.clone()*number::new(1./2.);
+    let M : Point = s.org.clone() + e.clone()* Number::new(1./2.);
 
     /*
         лежит в плоскости
@@ -273,12 +273,12 @@ fn get_segment_normal(s : &Segment, plane: &Plane) -> Line {
     let mut a : Matrix<Number> =Matrix::new_from_vector(
         vec![Row::new_from_vector(vec![normal.x.clone(), normal.y.clone(), normal.z.clone()]),
              Row::new_from_vector(vec![e.x.clone(), e.y.clone(), e.z.clone()]),
-             Row::new_from_vector(vec![-e.y.clone(), e.x.clone(), number::new(0.)])]);
+             Row::new_from_vector(vec![-e.y.clone(), e.x.clone(), Number::new(0.)])]);
 
     let mut y : Row<Number> = Row::new_from_vector(
         vec![-d.clone(),
              &e.x*&M.x + &e.y*&M.y + &e.z*&M.z,
-             &e.x*&s.org.y - &e.y*&s.org.x - number::new(1.)]);
+             &e.x*&s.org.y - &e.y*&s.org.x - Number::new(1.)]);
 
     let x = a.solve(y);
     //println!("{}", x);
@@ -287,7 +287,7 @@ fn get_segment_normal(s : &Segment, plane: &Plane) -> Line {
 
     assert!((&L-&M).dot_product(&(&s.dest - &s.org)).is_it_zero());
     assert!(plane.does_it_contain_point(&L));
-    assert!((&e.x*(&L.y - &s.org.y) - (&L.x - &s.org.x)*&e.y) == number::new(-1.));
+    assert!((&e.x*(&L.y - &s.org.y) - (&L.x - &s.org.x)*&e.y) == Number::new(-1.));
 
     debug!("plane: {:?}", plane);
     debug!("d: {0}", plane.get_ref_d().clone().convert_to_f32());
@@ -354,7 +354,7 @@ mod tests {
         let d = Point::new_from_f64(0.5, 0.5, 0.0);
         let e = Point::new_from_f64(0.0, 1.0, 0.0);
 
-        let one_third = number::new(1.)/number::new(3.);
+        let one_third = Number::new(1.)/ Number::new(3.);
         let f = Point::new(one_third.clone(), one_third.clone(), one_third);
 
         let plane = Plane::new_3p(&a, &b, &d);
@@ -421,8 +421,8 @@ mod tests {
         let b = Point::new_from_f64(1.0, 2.0, 0.0);
         let c = Point::new_from_f64(-2.0, -1.0, 3.0);
 
-        let minus_one_third = number::new(-1.) / number::new(3.);
-        let four_third = number::new(4.) / number::new(3.);
+        let minus_one_third = Number::new(-1.) / Number::new(3.);
+        let four_third = Number::new(4.) / Number::new(3.);
 
         let d = Point::new(minus_one_third.clone(), minus_one_third, four_third);
         let e = Point::new_from_f64(5., -3., -4.);
@@ -524,9 +524,9 @@ mod tests {
         let b = Point::new_from_f64(-2., 1., 0.);
         let c = Point::new_from_f64(-1., 1., 2.);
 
-        let one_third = number::new(1.) / number::new(3.);
+        let one_third = Number::new(1.) / Number::new(3.);
 
-        let d = Point::new(one_third.clone(), number::new(1.), one_third);
+        let d = Point::new(one_third.clone(), Number::new(1.), one_third);
         let e = Point::new_from_f64(5., 1., -1.);
 
         let plane = Plane::new_3p(&a, &b, &c);

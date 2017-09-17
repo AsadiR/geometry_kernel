@@ -3,8 +3,7 @@ use test::Bencher;
 
 use primitives::point;
 use primitives::vector;
-use primitives::number;
-use primitives::number::NumberTrait;
+use primitives::number::*;
 use primitives::Plane;
 
 use bidir_map::BidirMap;
@@ -195,7 +194,7 @@ impl BinaryStlFile {
         let x2 = input.read_f32::<LittleEndian>()?;
         let x3 = input.read_f32::<LittleEndian>()?;
 
-        Ok(point::Point {x: number::new_from_f32(x1), y: number::new_from_f32(x2), z: number::new_from_f32(x3)})
+        Ok(point::Point {x: Number::new_from_f32(x1), y: Number::new_from_f32(x2), z: Number::new_from_f32(x3)})
 
         //Ok(point::Point {x: number::new_from_f32(0.), y: number::new_from_f32(0.), z: number::new_from_f32(0.)})
         // return Err(Error::new(ErrorKind::Other, "bbb"));
@@ -435,8 +434,6 @@ mod test {
 
         match mesh::Mesh::read_stl(&mut Cursor::new(buffer)) {
             Ok(stl) => {
-
-                // println!("mesh: {:?}", stl);
                 assert!(stl.header.num_triangles == mesh.header.num_triangles);
                 assert!(stl.triangles.len() == 1);
                 assert!(stl.triangles[&0] == mesh.triangles[&0])
@@ -455,8 +452,6 @@ mod test {
         );
 
         mesh.add_triangle(t);
-
-        //println!("mesh: {:?}", mesh);
 
         let mut f = File::create(file_name).unwrap();
 
@@ -488,7 +483,6 @@ mod test {
         rw_test("test.stl")
     }
 
-    #[ignore]
     #[test]
     fn file_write_skull() {
         let mut f = File::open("input_for_tests/skull.stl").unwrap();
