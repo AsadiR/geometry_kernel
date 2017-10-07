@@ -1,6 +1,8 @@
 use intersect::triangle_x_triangle;
 use primitives::*;
 use intersect::tuple_iter::{TupleIter, enumerate_simple};
+use log::LogLevel;
+use time::PreciseTime;
 
 pub struct IntersectionResult {
     pub res_mxm_list : Vec<(usize, usize, triangle_x_triangle::ResTxT)>
@@ -20,14 +22,23 @@ impl IntersectionResult {
 
 
 pub fn intersect(a : &Mesh, b : &Mesh) -> IntersectionResult {
+    info!("<mesh_x_mesh::intersect> was started!");
+    let start = PreciseTime::now();
+
+    info!("The enumerating of indexes is performing ...");
     let triangles_enum = enumerate_simple(a, b);
     let mut res_mxm_list : Vec<(usize, usize, triangle_x_triangle::ResTxT)> = Vec::new();
+
+
+    info!("The triangles are intersecting ...");
+    let mut counter = 0;
     for &(index_a, index_b) in triangles_enum.iter() {
-        //println!("m_x_m {0} {1}", index_a, index_b);
+        if counter%10000 == 0 && counter != 0 {
+            info!("The {0}-th triangle pair is performing. Mesh intersection lasts {1} seconds!", counter, start.to(PreciseTime::now()));
+        }
 
         let tr_a = a.get_triangle(index_a);
         let tr_b = b.get_triangle(index_b);
-        //println!("m_x_m {:?} {:?}\n", tr_a, tr_b);
 
         let res_txt = triangle_x_triangle::intersect(&tr_a, &tr_b);
 
@@ -40,6 +51,9 @@ pub fn intersect(a : &Mesh, b : &Mesh) -> IntersectionResult {
             debug!("info {:?}", res_txt.get_info());
             res_mxm_list.push((index_a, index_b, res_txt));
         }
+
+        counter += 1;
     }
+    info!("<mesh_x_mesh::intersect> finished in {0} seconds!", start.to(PreciseTime::now()));
     return IntersectionResult::new(res_mxm_list)
 }

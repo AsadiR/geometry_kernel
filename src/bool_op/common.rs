@@ -6,6 +6,7 @@ use triangulation::incremental_triangulation::triangulate;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 use std::collections::hash_set;
 use std::vec;
 
@@ -51,9 +52,60 @@ fn find_conjugated_point(tr: &Triangle, org: &Point, dest: &Point) -> Option<Poi
     return None;
 }
 
+fn choose_correct_dp(ns: &Vec<Vector>, v: &Vector) -> Number {
+    /*
+    Утверждение:
+    Если наблюдается случай касания ребром одной поверхности другой, то
+    тогда для этого ребра возникнут две разные нормали. При этом они могут давать
+    разный результат при классификации. В этом случае нужно брать нормаль, которая имеет больший угол
+    с вектором, проведенным  из середины этого ребра в третью точку треугольника (v).
+    */
+
+
+    let mut odp: Option<Number> = None;
+    let mut on: Option<Vector> = None;
+
+    let len_ns = ns.len();
+
+    let mut o_cos2 : Option<Number> = None;
+    let len2_v = v.length2();
+
+    for n in ns.iter() {
+        let cur_dp = v.dot_product(n);
+
+        if cur_dp.is_it_zero() {
+            // игнорируем случаи наложения.
+            continue
+        }
+
+        let cur_cos2 = &cur_dp / (&len2_v * n.length2());
+
+        /*
+        if len_ns >= 2 {
+            println!("normal {:?}", n);
+            println!("cur_dp {0}", cur_dp);
+            println!("cur_cos2 {0}", cur_cos2);
+            println!();
+        }
+        */
+
+        if o_cos2.is_none() || (o_cos2.clone().unwrap() < cur_cos2) {
+            odp = Some(cur_dp);
+            o_cos2 = Some(cur_cos2);
+        }
+    }
+
+    if odp.is_some() {
+        return odp.unwrap();
+    } else {
+        return Number::zero();
+    }
+
+}
+
 fn first_classification(t: &Triangle, tdesc: &mut TDesc) -> Marker {
     debug!("First classification for {:?} was started", t);
-    for &(ref s, ref n) in tdesc.get_s_and_n_ref().iter() {
+    for (s, ref ns) in tdesc.get_s_to_ns_ref().iter() {
         debug!("s: {:?}", s);
 
         let (org, dest) = s.clone().get_org_dest();
@@ -61,17 +113,17 @@ fn first_classification(t: &Triangle, tdesc: &mut TDesc) -> Marker {
         match ocp {
             Some(p) => {
                 let p_proj = s.get_point_projection(&p);
-                debug!("p_proj {:?}", p_proj);
-                debug!("p {:?}", p);
-                debug!("normal: {:?}", n);
+                debug!("\tp_proj {:?}", p_proj);
+                debug!("\tp {:?}", p);
                 let v = p - p_proj;
-                debug!("v: {:?}", v);
-                let dot_vn = v.dot_product(&n);
+
+                //println!("\ns: {:?}", s);
+                let dot_vn = choose_correct_dp(ns, &v);
                 if dot_vn.is_it_negative() {
-                    debug!("It's an inner triangle dot_vn={0}\n", dot_vn);
+                    debug!("\tIt's an inner triangle dot_vn={0}\n", dot_vn);
                     return  Marker::Inner;
                 } else if dot_vn.is_it_positive() {
-                    debug!("It's an outer triangle dot_vn={0}\n", dot_vn);
+                    debug!("\tIt's an outer triangle dot_vn={0}\n", dot_vn);
                     return Marker::Outer;
                 }
             },
@@ -82,12 +134,27 @@ fn first_classification(t: &Triangle, tdesc: &mut TDesc) -> Marker {
     return Marker::Unclassified;
 }
 
+
 fn second_classification(t: &Triangle, tdesc: &mut TDesc) -> Marker {
     for polygon in tdesc.get_polygons_ref() {
         let pn = polygon.normal.clone();
         let ps = polygon.get_points_ref();
         let ps_len = ps.len();
         let tn = t.get_normal();
+
+        let mut num_of_common_ps = 0;
+        for i in 0..ps.len() {
+            for j in 0..3 {
+                if &ps[i] == t.get_ref(j) {
+                    num_of_common_ps += 1;
+                }
+            }
+        }
+
+        // полигоны выпуклые, и как следствие все их внутренние треугольники содержат три точки из полигона
+        if num_of_common_ps != 3 {
+            continue;
+        }
 
         for i in 0..ps.len() {
             let ref p_cur = ps[i];
@@ -117,8 +184,8 @@ fn second_classification(t: &Triangle, tdesc: &mut TDesc) -> Marker {
     return Marker::Unclassified;
 }
 
-fn triangulate_all(it_to_desc: HashMap<usize, TDesc>) -> Vec<(Triangle, Marker)> {
-    let mut new_ts : Vec<(Triangle, Marker)>  = Vec::new();
+fn triangulate_all(it_to_desc: HashMap<usize, TDesc>) -> HashMap<Triangle, Marker> {
+    let mut new_ts : HashMap<Triangle, Marker>  = HashMap::new();
     for (it, mut tdesc) in it_to_desc.into_iter() {
         let mut points : Vec<Point> = Vec::new();
         for p in tdesc.get_points_drain_iter() {
@@ -132,11 +199,12 @@ fn triangulate_all(it_to_desc: HashMap<usize, TDesc>) -> Vec<(Triangle, Marker)>
             let m2 = second_classification(&t, &mut tdesc);
             let res_marker = if m2.is_it_planar() {
                 // TODO исправить баг с параллельным продолжением
+                // TODO исправить баг касание ребром и отсутствие некоторых двойных нормалей
                 m2
             } else {
                 m1
             };
-            new_ts.push((t, res_marker));
+            new_ts.insert(t, res_marker);
         }
     }
     return new_ts;
@@ -147,7 +215,7 @@ struct TDesc {
     it : usize,
     points : HashSet<Point>,
     polygons : Vec<Polygon>,
-    s_and_n : Vec<(Segment, Vector)>,
+    s_to_ns: BTreeMap<Segment, Vec<Vector>>,
     plane: Plane
 }
 
@@ -157,7 +225,7 @@ impl TDesc {
             it: it,
             points: HashSet::new(),
             polygons: Vec::new(),
-            s_and_n: Vec::new(),
+            s_to_ns: BTreeMap::new(),
             plane: plane
         }
     }
@@ -179,11 +247,20 @@ impl TDesc {
         }
     }
 
+
+    /*
+    Так как модели правильные, т.е. без самопересечения.
+    То один треугольник по одному отрезку секут ровно два треугольника.
+    */
     pub fn add_s_and_n(&mut self, s: Segment, n: Vector) {
-        self.s_and_n.push((s.clone(), n));
-        let (org, dest) = s.get_org_dest();
-        self.points.insert(org);
-        self.points.insert(dest);
+        if self.s_to_ns.contains_key(&s) {
+            self.s_to_ns.get_mut(&s).unwrap().push(n);
+        } else {
+            self.s_to_ns.insert(s.clone(), vec![n]);
+            let (org, dest) = s.get_org_dest();
+            self.points.insert(org);
+            self.points.insert(dest);
+        }
     }
 
     pub fn get_points_drain_iter(&mut self) -> hash_set::Drain<Point> {
@@ -194,13 +271,10 @@ impl TDesc {
         return &self.points;
     }
 
-    pub fn get_s_and_n_drain_iter(&mut self) -> vec::Drain<(Segment, Vector)> {
-        let len = self.s_and_n.len();
-        return self.s_and_n.drain(0..len);
-    }
 
-    pub fn get_s_and_n_ref(&self) -> &Vec<(Segment, Vector)> {
-        return &self.s_and_n;
+
+    pub fn get_s_to_ns_ref(&self) -> &BTreeMap<Segment, Vec<Vector>> {
+        return &self.s_to_ns;
     }
 
     pub fn get_polygons_drain_iter(&mut self) -> vec::Drain<Polygon> {
@@ -210,6 +284,35 @@ impl TDesc {
 
     pub fn get_polygons_ref(&self) -> &Vec<Polygon> {
         return &self.polygons;
+    }
+
+}
+
+fn add_triangles(ts_and_ms: HashMap<Triangle, Marker>, mesh: &mut Mesh, it_to_marker: &mut HashMap<usize, Marker>) {
+    for (t, m) in ts_and_ms.into_iter() {
+        let it = mesh.add_triangle(t);
+        it_to_marker.insert(it, m);
+    }
+}
+
+fn dfs(mesh: &mut Mesh, it_to_marker: &mut HashMap<usize, Marker>) {
+    let mut ts_to_visit: Vec<(usize, Marker)> = Vec::new();
+    for (it, m) in it_to_marker.iter() {
+        if m != &Marker::Unclassified {
+            ts_to_visit.push((it.clone(), m.clone()));
+        }
+    }
+
+    while ts_to_visit.len() != 0 {
+        let (it, m) = ts_to_visit.pop().unwrap();
+
+        let conjugated_ts = mesh.find_segment_conjugated_triangles(it);
+        for ict in conjugated_ts {
+            if !it_to_marker.contains_key(&ict) || (it_to_marker[&ict] == Marker::Unclassified) {
+                it_to_marker.insert(ict, m.clone());
+                ts_to_visit.push((ict, m.clone()));
+            }
+        }
     }
 
 }
@@ -252,6 +355,7 @@ impl BoolOpPerformer {
         let td_start = PreciseTime::now();
         info!("The triangle descriptors are being created ...");
         for (index_a, index_b, res) in  mxm_res_lst{
+            debug!("\t({0}, {1}) is performing", index_a, index_b);
             mesh_a.remove_triangle(&index_a);
             mesh_b.remove_triangle(&index_b);
 
@@ -279,27 +383,35 @@ impl BoolOpPerformer {
                 }
             }
 
+            let na = mesh_a_ref.get_normal_by_index(index_a);
+            let nb = mesh_b_ref.get_normal_by_index(index_b);
+
             // вторичное добавление точек фрагментов пересечения
             match res.get_info() {
+
+                /*
                 InfoTxT::IntersectingInAPoint => {
                     let point = res.get_point();
                     mut_ref_tdec_a.add_point(point.clone());
                     mut_ref_tdec_b.add_point(point);
                 },
+                */
 
                 InfoTxT::Intersecting => {
                     let segment = res.get_segment();
-                    let na = mesh_a_ref.get_normal_by_index(index_a);
-                    let nb = mesh_b_ref.get_normal_by_index(index_b);
+
+                    //println!("segment : {:?}", segment);
 
                     mut_ref_tdec_a.add_s_and_n(segment.clone(), nb);
                     mut_ref_tdec_b.add_s_and_n(segment, na);
                 }
 
                 InfoTxT::CoplanarIntersecting => {
-                    let polygon = res.get_polygon();
-                    mut_ref_tdec_a.add_polygon(polygon.clone());
-                    mut_ref_tdec_b.add_polygon(polygon);
+                    let mut polygon = res.get_polygon();
+                    mut_ref_tdec_b.add_polygon(polygon.clone());
+
+                    polygon.normal = nb;
+                    mut_ref_tdec_a.add_polygon(polygon);
                 }
 
                 _ => {}
@@ -309,43 +421,14 @@ impl BoolOpPerformer {
 
         let triangulation_start = PreciseTime::now();
         info!("<triangulate_all> has been started ...");
-        let mut new_ts_a : Vec<(Triangle, Marker)> = triangulate_all(a_it_to_tdec);
-        let mut new_ts_b : Vec<(Triangle, Marker)> = triangulate_all(b_it_to_tdec);
+        let mut new_ts_a : HashMap<Triangle, Marker> = triangulate_all(a_it_to_tdec);
+        let mut new_ts_b : HashMap<Triangle, Marker> = triangulate_all(b_it_to_tdec);
         info!("Triangulated intersection area, for model A, contains {0} triangles.", new_ts_a.len());
         info!("Triangulated intersection area, for model B, contains {0} triangles.", new_ts_b.len());
         info!("<triangulate_all> has been performed in {0} seconds.\n", triangulation_start.to(PreciseTime::now()));
 
         let mut a_it_to_marker : HashMap<usize, Marker> = HashMap::new();
         let mut b_it_to_marker : HashMap<usize, Marker> = HashMap::new();
-
-        fn add_triangles(ts_and_ms: Vec<(Triangle, Marker)>, mesh: &mut Mesh, it_to_marker: &mut HashMap<usize, Marker>) {
-            for (t, m) in ts_and_ms.into_iter() {
-                let it = mesh.add_triangle(t);
-                it_to_marker.insert(it, m);
-            }
-        };
-
-        fn dfs(mesh: &mut Mesh, it_to_marker: &mut HashMap<usize, Marker>) {
-            let mut ts_to_visit: Vec<(usize, Marker)> = Vec::new();
-            for (it, m) in it_to_marker.iter() {
-                if m != &Marker::Unclassified {
-                    ts_to_visit.push((it.clone(), m.clone()));
-                }
-            }
-
-            while ts_to_visit.len() != 0 {
-                let (it, m) = ts_to_visit.pop().unwrap();
-
-                let conjugated_ts = mesh.find_segment_conjugated_triangles(it);
-                for ict in conjugated_ts {
-                    if !it_to_marker.contains_key(&ict) || (it_to_marker[&ict] == Marker::Unclassified) {
-                        it_to_marker.insert(ict, m.clone());
-                        ts_to_visit.push((ict, m.clone()));
-                    }
-                }
-            }
-
-        };
 
         let dfs_start = PreciseTime::now();
         info!("<dfs> has been started ...");
@@ -515,7 +598,8 @@ mod tests {
 
     fn bool_op_test(input_file_name_a: &str, input_file_name_b: &str,
                     test_index: usize,
-                    operations: Vec<BoolOpType>
+                    operations: Vec<BoolOpType>,
+                    geometry_check: bool
     ) {
         env_logger_init().unwrap_or_else(|x| ->  () {});
 
@@ -523,6 +607,10 @@ mod tests {
         let mut fb = File::open(input_file_name_b).unwrap();
         let ma : Mesh = Mesh::read_stl(& mut fa).unwrap();
         let mb : Mesh = Mesh::read_stl(& mut fb).unwrap();
+
+        if geometry_check && (!ma.geometry_check() || !mb.geometry_check()) {
+            panic!("Geometry check failed!")
+        }
 
         let inter_res_a_file_name = format!(pattern_str!(), test_index, "inter_a.stl");
         let bool_op_performer : BoolOpPerformer = BoolOpPerformer::new(&ma, &mb).expect("The error was raised!");
@@ -557,6 +645,10 @@ mod tests {
                 Ok(_) => (),
                 Err(_) => panic!("Can not write into file!")
             };
+
+            if geometry_check && !m.geometry_check() {
+                panic!("Geometry check failed!")
+            }
         }
     }
 
@@ -564,14 +656,14 @@ mod tests {
     fn test0() {
         bool_op_test("input_for_tests/plane2.stl",
                      "input_for_tests/plane1.stl",
-                     0, vec![BoolOpType::Union]);
+                     0, vec![BoolOpType::Union], false);
     }
 
     #[test]
     fn test1() {
         bool_op_test("input_for_tests/cube_in_origin.stl",
                    "input_for_tests/scaled_shifted_cube.stl",
-                   1, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection]);
+                   1, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection], true);
     }
 
     #[test]
@@ -579,28 +671,61 @@ mod tests {
         //cargo test first_union_test -- --nocapture
         bool_op_test("input_for_tests/cube_in_origin.stl",
                    "input_for_tests/long_scaled_shifted_cube.stl",
-                   2, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection]);
+                   2, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection], true);
     }
 
     #[test]
     fn test3() {
         bool_op_test("input_for_tests/sphere_in_origin.stl",
                      "input_for_tests/long_scaled_shifted_cube.stl",
-                     3, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection]);
+                     3, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection], true);
     }
 
     #[test]
     fn test4() {
         bool_op_test("input_for_tests/sphere_in_origin.stl",
                    "input_for_tests/cone_in_origin.stl",
-                   4, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection]);
+                   4, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection], true);
     }
 
     #[test]
     fn test5() {
         bool_op_test("input_for_tests/cube_in_origin.stl",
                      "input_for_tests/skew_cube_in_origin.stl",
-                     5, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection]);
+                     5, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection], true);
+    }
+
+    #[ignore]
+    #[test]
+    fn test6() {
+        bool_op_test("input_for_tests/skull.stl",
+                     "input_for_tests/sphere_in_origin.stl",
+                     6, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection], false);
+    }
+
+
+    #[test]
+    fn test7() {
+        // результат операции - поверхность с самопересечением.
+
+        bool_op_test("input_for_tests/cube_in_origin.stl",
+                     "input_for_tests/skew_cube_in_origin2.stl",
+                     7, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection], false);
+    }
+
+    #[test]
+    fn test8() {
+        // результат операции - поверхность с самопересечением.
+        bool_op_test("input_for_tests/cube_in_origin.stl",
+                     "input_for_tests/moved_cube.stl",
+                     8, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection], false);
+    }
+
+    #[test]
+    fn test9() {
+        bool_op_test("input_for_tests/cube_in_origin.stl",
+                     "input_for_tests/moved_cube_not_skewed.stl",
+                     9  , vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection], true);
     }
 
 }

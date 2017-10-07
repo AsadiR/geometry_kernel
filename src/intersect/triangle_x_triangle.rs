@@ -18,7 +18,8 @@ pub enum InfoTxT {
 
 impl InfoTxT {
     pub fn does_it_intersecting(&self) -> bool {
-        return (*self == InfoTxT::Intersecting) || (*self == InfoTxT::CoplanarIntersecting) || (*self == InfoTxT::IntersectingInAPoint);
+        // return (*self == InfoTxT::Intersecting) || (*self == InfoTxT::CoplanarIntersecting) || (*self == InfoTxT::IntersectingInAPoint);
+        return (*self == InfoTxT::Intersecting) || (*self == InfoTxT::CoplanarIntersecting);
     }
 }
 
@@ -117,33 +118,33 @@ pub fn intersect(tr1 : &Triangle, tr2 : &Triangle) -> ResTxT {
 
 
     match (op1, os1, op2, os2) {
-        (Some(p1), None, Some(p2), None) => {
+        (Some(p1), Option::None, Some(p2), Option::None) => {
             if p1 == p2 {
                 return ResTxT::new(Some(p1), None, None, InfoTxT::IntersectingInAPoint);
             } else {
                 return ResTxT::new(None, None, None, InfoTxT::NotIntersecting);
             }
         },
-        (None, Some(s1), None, Some(s2)) => {
+        (Option::None, Some(s1), Option::None, Some(s2)) => {
             let res = segment_x_segment::intersect_segments_on_the_line(&s1, &s2);
             match res {
-                (None, Some(s), segment_x_segment::InfoSxS::IntersectingInASegment) => {
+                (Option::None, Some(s), segment_x_segment::InfoSxS::IntersectingInASegment) => {
                     return ResTxT::new(None, Some(s), None, InfoTxT::Intersecting);
                 },
-                (Some(p), None, segment_x_segment::InfoSxS::IntersectingInAPointOnLine) => {
+                (Some(p), Option::None, segment_x_segment::InfoSxS::IntersectingInAPointOnLine) => {
                     return ResTxT::new(Some(p), None, None, InfoTxT::IntersectingInAPoint);
                 }
                 _ => return ResTxT::new(None, None, None, InfoTxT::NotIntersecting)
             }
         }
-        (None, Some(s1), Some(p2), None) => {
+        (Option::None, Some(s1), Some(p2), Option::None) => {
             if s1.contains_point(&p2) {
                 return ResTxT::new(Some(p2), None, None, InfoTxT::IntersectingInAPoint);
             } else {
                 return ResTxT::new(None, None, None, InfoTxT::NotIntersecting);
             }
         },
-        (Some(p1), None, None, Some(s2)) => {
+        (Some(p1), Option::None, Option::None, Some(s2)) => {
             if s2.contains_point(&p1) {
                 return ResTxT::new(Some(p1), None, None, InfoTxT::IntersectingInAPoint);
             } else {

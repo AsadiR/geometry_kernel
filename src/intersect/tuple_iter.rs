@@ -1,14 +1,13 @@
 use primitives::*;
-use std::collections::BTreeSet;
-use std::collections::btree_set::Iter;
+use std::slice::Iter;
 
 pub struct TupleIter {
-    v : BTreeSet<(usize, usize)>,
+    v : Vec<(usize, usize)>,
     index : usize,
 }
 
 impl TupleIter {
-    pub fn new(v : BTreeSet<(usize, usize)>) -> TupleIter {
+    pub fn new(v : Vec<(usize, usize)>) -> TupleIter {
         TupleIter {v: v, index: 0}
     }
 
@@ -20,11 +19,11 @@ impl TupleIter {
 
 
 pub fn enumerate_simple(a : &Mesh, b : &Mesh) -> TupleIter {
-    let mut pairs : BTreeSet<(usize, usize)> = BTreeSet::new();
+    let mut pairs : Vec<(usize, usize)> = Vec::new();
 
     for index_a in 0..a.num_of_triangles() {
         for index_b in 0..b.num_of_triangles() {
-            pairs.insert((index_a, index_b));
+            pairs.push((index_a, index_b));
         }
     }
     TupleIter::new(pairs)

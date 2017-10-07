@@ -3,6 +3,8 @@ use geometry_kernel::primitives::mesh::Mesh;
 use geometry_kernel::bool_op::BoolOpPerformer;
 use std::fs::File;
 
+extern crate gmp;
+
 fn main() {
     let mut f_a = File::open("input_for_tests/cube_in_origin.stl").unwrap();
     let mesh_a = Mesh::read_stl(&mut f_a).unwrap();

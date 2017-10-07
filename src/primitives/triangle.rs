@@ -8,12 +8,19 @@ use primitives::segment::Segment;
 use std::collections::BTreeSet;
 
 /// This structure represents a triangle in 3D space.
-#[derive(Debug)]
+#[derive(Debug, Hash)]
 pub struct Triangle {
     points : Vec<Point>,
     normal : Option<Vector>
 }
 
+impl PartialEq for Triangle {
+    fn eq(&self, other: &Triangle) -> bool {
+        (self.points[0] == other.points[0]) & (self.points[1] == other.points[1]) & (self.points[2] == other.points[2])
+    }
+}
+
+impl Eq for Triangle {}
 
 impl Triangle {
     /// This method creates `Triangle` from a `Vec` of points and calculates a normal using `points`.

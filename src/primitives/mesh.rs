@@ -10,6 +10,7 @@ use bidir_map::BidirMap;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 use std::io::{Result, ErrorKind, Error};
 use byteorder::{ReadBytesExt, LittleEndian, WriteBytesExt};
@@ -47,6 +48,21 @@ impl MeshTriangle {
         self.normal.clone()
     }
 
+    pub(crate) fn add_neighbour(&mut self, it : usize) {
+        if !self.conatin_neighbour(it) {
+            self.ins.push(it);
+        }
+    }
+
+    pub(crate) fn conatin_neighbour(&self, it : usize) -> bool{
+        for i in self.ins.iter() {
+            if it == *i {
+                return true;
+            }
+        }
+        return false;
+    }
+
 }
 
 impl PartialEq for MeshTriangle {
@@ -57,7 +73,7 @@ impl PartialEq for MeshTriangle {
             }
         }
 
-        self.normal == rhs.normal && self.attr_byte_count == rhs.attr_byte_count
+        self.normal == rhs.normal //&& self.attr_byte_count == rhs.attr_byte_count
     }
 }
 
@@ -95,11 +111,10 @@ impl fmt::Debug for BinaryStlHeader {
 #[derive(Debug)]
 pub struct BinaryStlFile {
     header: BinaryStlHeader,
-    triangles: HashMap<usize, MeshTriangle>,
+    index_to_triangle: HashMap<usize, MeshTriangle>,
     ip_to_p: HashMap<usize, point::Point>,
     p_to_ip: HashMap<point::Point, usize>,
-    // pub points: BidirMap<usize, point::Point>,
-    ip_to_its: BTreeMap<usize, Vec<usize>>,
+    ip_to_its: HashMap<usize, Vec<usize>>,
     max_tr_index: usize
 }
 
@@ -111,10 +126,10 @@ impl BinaryStlFile {
     pub fn new() -> BinaryStlFile {
         BinaryStlFile {
             header: BinaryStlHeader { header: [0u8; 80], num_triangles: 0 },
-            triangles: HashMap::new(),
+            index_to_triangle: HashMap::new(),
             ip_to_p: HashMap::new(),
             p_to_ip: HashMap::new(),
-            ip_to_its: BTreeMap::new(),
+            ip_to_its: HashMap::new(),
             max_tr_index: 0
         }
     }
@@ -126,10 +141,10 @@ impl BinaryStlFile {
 
     /// This method returns a number of triangles.
     pub fn num_of_triangles(&self) -> usize {
-        return self.triangles.len();
+        return self.index_to_triangle.len();
     }
 
-    /// This method adds a triangle to the topology.
+    /// This method adds a triangle to the topology. It does not check if this triangle was added before or wasn't.
     /// # Arguments
     ///
     /// * `tr` - A triangle to add
@@ -150,19 +165,21 @@ impl BinaryStlFile {
         let it : usize = self.max_tr_index.clone();
         self.max_tr_index += 1;
 
+
         for p in ps {
             if self.p_to_ip.contains_key(&p) {
                 let ip : usize = self.p_to_ip.get(&p).unwrap().clone();
                 for int in &self.ip_to_its[&ip] {
                     // to ignore removed triangles
-                    if self.triangles.contains_key(&int) {
-                        m_tr.ins.push(*int);
-                        self.triangles.get_mut(int).unwrap().ins.push(it);
+                    if self.index_to_triangle.contains_key(&int) {
+                        m_tr.add_neighbour(*int);
+                        self.index_to_triangle.get_mut(int).unwrap().add_neighbour(it);
                     }
                 }
                 self.ip_to_its.get_mut(&ip).unwrap().push(it);
                 m_tr.ips.push(ip);
             } else {
+
                 let ip : usize = self.ip_to_p.len();
                 self.ip_to_its.insert(ip.clone(), Vec::new());
                 self.ip_to_its.get_mut(&ip).unwrap().push(it);
@@ -172,8 +189,10 @@ impl BinaryStlFile {
             }
         }
 
-        self.triangles.insert(it, m_tr);
+        self.index_to_triangle.insert(it, m_tr.clone());
         self.header.num_triangles += 1;
+
+        // TODO убрать возможность вставлять одинаоквые треугольники
         return it;
     }
 
@@ -216,11 +235,11 @@ impl BinaryStlFile {
     }
 
     pub(crate) fn get_normal_by_index(&self, index: usize) -> vector::Vector {
-        return self.triangles[&index].get_normal()
+        return self.index_to_triangle[&index].get_normal()
     }
 
     pub(crate) fn get_plane_by_index(&self, index: usize) -> Plane {
-        let p0_index = self.triangles[&index].ips[0];
+        let p0_index = self.index_to_triangle[&index].ips[0];
         Plane::new(
             self.get_normal_by_index(index),
             self.ip_to_p[&p0_index].clone()
@@ -233,7 +252,7 @@ impl BinaryStlFile {
         поля ins в MeshTriangle по прежнему могут содеражть индексы удаленных треугольников
         ip_to_its - тоже может содержать индексы удаленных треугольников в векторах.
         */
-        let res = self.triangles.remove(index);
+        let res = self.index_to_triangle.remove(index);
         if res.is_some() {
             self.header.num_triangles -= 1;
         }
@@ -312,14 +331,14 @@ impl BinaryStlFile {
         info!("Writing model ...");
 
         //info!("dbg: {:?} : {:?}", self.header.num_triangles as usize, self.triangles.len());
-        assert!(self.header.num_triangles as usize == self.triangles.len());
+        assert!(self.header.num_triangles as usize == self.index_to_triangle.len());
 
         //write the header.
         out.write(&self.header.header)?;
         out.write_u32::<LittleEndian>(self.header.num_triangles)?;
 
         // write all the triangles
-        for (_, t) in self.triangles.iter() {
+        for (_, t) in self.index_to_triangle.iter() {
             // write the normal
             Mesh::write_point(out, &t.normal.get_point())?;
 
@@ -343,7 +362,7 @@ impl BinaryStlFile {
     ///
     /// * `index` - An index of triangle to get
     pub fn get_triangle(&self, index : usize) -> Triangle {
-        let mt : &MeshTriangle = &self.triangles[&index];
+        let mt : &MeshTriangle = &self.index_to_triangle[&index];
         let p1 = self.ip_to_p[&mt.ips[0]].clone();
         let p2 = self.ip_to_p[&mt.ips[1]].clone();
         let p3 = self.ip_to_p[&mt.ips[2]].clone();
@@ -357,7 +376,7 @@ impl BinaryStlFile {
     ///
     /// * `index` - An index of triangle to get
     pub fn get_reversed_triangle(&self, index : usize) -> Triangle {
-        let mt : &MeshTriangle = &self.triangles[&index];
+        let mt : &MeshTriangle = &self.index_to_triangle[&index];
         let p1 = self.ip_to_p[&mt.ips[0]].clone();
         let p2 = self.ip_to_p[&mt.ips[1]].clone();
         let p3 = self.ip_to_p[&mt.ips[2]].clone();
@@ -367,9 +386,9 @@ impl BinaryStlFile {
 
     pub(crate) fn get_number_of_coincident_points(&self, it1: usize, it2: usize) -> usize {
         let mut t1_ipset: BTreeSet<usize> = BTreeSet::new();
-        t1_ipset.extend(self.triangles[&it1].ips.clone());
+        t1_ipset.extend(self.index_to_triangle[&it1].ips.clone());
         let mut res : usize = 0;
-        for it in self.triangles[&it2].ips.iter() {
+        for it in self.index_to_triangle[&it2].ips.iter() {
             if t1_ipset.contains(it) {
                 res += 1;
             }
@@ -381,8 +400,8 @@ impl BinaryStlFile {
     pub(crate) fn find_segment_conjugated_triangles(&self, it: usize) -> Vec<usize> {
         let mut res : Vec<usize> = Vec::new();
 
-        for int in self.triangles[&it].ins.iter() {
-            if self.triangles.contains_key(int) {
+        for int in self.index_to_triangle[&it].ins.iter() {
+            if self.index_to_triangle.contains_key(int) {
                 let number = self.get_number_of_coincident_points(it, *int);
                 if number == 2 {
                     res.push(int.clone());
@@ -393,6 +412,30 @@ impl BinaryStlFile {
 
         }
         return res;
+    }
+
+    pub(crate) fn geometry_check(&self) -> bool {
+        debug!("geometry check is performing ...");
+        for index in 0..self.index_to_triangle.len() {
+            let sc_ts = self.find_segment_conjugated_triangles(index);
+
+            if sc_ts.len() != 3 {
+                debug!("\t{:?}", sc_ts);
+
+                debug!("\tnum of nts is {0}", self.index_to_triangle[&index].ins.len());
+                debug!("\tnum of cts is {0}", sc_ts.len());
+                for it in sc_ts {
+                    debug!("\tt: {:?}", self.get_triangle(it));
+                }
+                return false;
+            }
+
+            if self.index_to_triangle[&index].ips.len() != 3 {
+                return false;
+            }
+        }
+
+        return true;
     }
 
 }
@@ -435,8 +478,8 @@ mod test {
         match mesh::Mesh::read_stl(&mut Cursor::new(buffer)) {
             Ok(stl) => {
                 assert!(stl.header.num_triangles == mesh.header.num_triangles);
-                assert!(stl.triangles.len() == 1);
-                assert!(stl.triangles[&0] == mesh.triangles[&0])
+                assert!(stl.index_to_triangle.len() == 1);
+                assert!(stl.index_to_triangle[&0] == mesh.index_to_triangle[&0])
             },
             Err(_) => panic!()
         }
@@ -465,8 +508,8 @@ mod test {
         match mesh::Mesh::read_stl(&mut f) {
             Ok(stl) => {
                 assert!(stl.header.num_triangles == mesh.header.num_triangles);
-                assert!(stl.triangles.len() == 1);
-                assert!(stl.triangles[&0] == mesh.triangles[&0]);
+                assert!(stl.index_to_triangle.len() == 1);
+                assert!(stl.index_to_triangle[&0] == mesh.index_to_triangle[&0]);
                 assert!(stl.ip_to_p.get(&0) == mesh.ip_to_p.get(&0));
                 assert!(stl.ip_to_p.get(&1) == mesh.ip_to_p.get(&1));
                 assert!(stl.ip_to_p.get(&2) == mesh.ip_to_p.get(&2));
