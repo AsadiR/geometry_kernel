@@ -12,7 +12,7 @@ pub enum InfoPxP {
 pub fn intersect(plane1 : &Plane, plane2 : &Plane) -> (Option<Line>, InfoPxP) {
 
     // (p - p0)*n = p*n + d => d = -p0*n
-    let mut a = plane1.normal.cross_product(&plane2.normal);
+    let a = plane1.normal.cross_product(&plane2.normal);
 
     let d1 = plane1.get_ref_d();
     let d2 = plane2.get_ref_d();
@@ -56,7 +56,7 @@ pub fn intersect(plane1 : &Plane, plane2 : &Plane) -> (Option<Line>, InfoPxP) {
 
     let b : Row<Number> = Row::new_from_vector(bv);
 
-    let mut last_row : Row<Number> = match 1 {
+    let last_row : Row<Number> = match 1 {
         _ if !a.z.is_it_zero() =>
             Row::new_from_vector(vec![Number::new(0.), Number::new(0.), Number::new(1.)]),
 

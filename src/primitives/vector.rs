@@ -3,12 +3,12 @@ use primitives::number::*;
 use std::mem::swap;
 
 
-use primitives::signed_trait::Signed;
-use primitives::zero_trait::Zero;
-use std::fmt::Debug;
-use std::hash::Hash;
-use std::ops::{Add, Sub, Mul, Div, Neg};
-use std::cmp::Ord;
+// use primitives::signed_trait::Signed;
+// use primitives::zero_trait::Zero;
+// use std::fmt::Debug;
+// use std::hash::Hash;
+use std::ops::{Add, Sub, Mul /*, Div, Neg*/};
+// use std::cmp::Ord;
 use std::fmt;
 
 
@@ -182,7 +182,7 @@ impl fmt::Display for Vector {
 mod tests {
     use primitives::number::*;
     use primitives::vector;
-    use primitives::point;
+    //use primitives::point;
 
     #[test]
     fn vector_plus_vector() {

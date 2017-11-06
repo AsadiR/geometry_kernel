@@ -5,7 +5,7 @@ use primitives::number::*;
 use primitives::zero_trait::Zero;
 use primitives::signed_trait::Signed;
 use primitives::segment::Segment;
-use std::collections::BTreeSet;
+// use std::collections::BTreeSet;
 
 /// This structure represents a triangle in 3D space.
 #[derive(Debug, Hash)]
@@ -45,7 +45,7 @@ impl Triangle {
     /// * `points` - A `Vec<Point>' to create the triangle.
     /// * `normal` - A normal vector.
     pub fn new_with_normal(points : Vec<Point>, normal : Vector) -> Triangle {
-        let mut t  = Triangle {
+        let t  = Triangle {
             points : points,
             normal : Some(normal)
         };
@@ -79,7 +79,7 @@ impl Triangle {
     }
 
     pub(crate) fn gen_plane(&self) -> Plane {
-        let mut p = Plane::new(
+        let p = Plane::new(
             // check it!
             (self.get_ref(0) - self.get_ref(1)).cross_product(&(self.get_ref(1) - self.get_ref(2))),
             self.get_ref(0).clone()
@@ -171,7 +171,7 @@ impl Triangle {
 #[cfg(test)]
 mod tests {
     use primitives::*;
-    use intersect::*;
+    // use intersect::*;
 
     #[test]
     fn triangle_contains_point() {

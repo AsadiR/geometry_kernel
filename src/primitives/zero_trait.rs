@@ -1,6 +1,5 @@
-use num::rational::{Ratio, BigRational, Rational64};
-use num;
-use num::Zero as numZero;
+// use num::rational::{Ratio, BigRational, Rational64};
+// use num::Zero as numZero;
 
 /// This trait contains an interface for nullable structures.
 pub trait Zero<T> {

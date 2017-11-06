@@ -1,11 +1,10 @@
 
-use primitives::signed_trait::Signed;
-use primitives::zero_trait::Zero;
+use primitives::*;
 use std::fmt::Debug;
-use std::hash::{Hash, Hasher};
-use std::ops::{Add, Sub, Mul, Div, Neg};
+use std::hash::{Hash};
+use std::ops::{Add, Sub, Mul, Div /*, Neg*/};
 use std::cmp::Ord;
-use std::fmt;
+// use std::fmt;
 
 
 /// This trait contains a basic interface for `Number`.

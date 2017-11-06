@@ -1,16 +1,17 @@
-#![feature(test)]
-use test::Bencher;
+// #![feature(test)]
+// use test::Bencher;
 
 use primitives::point;
 use primitives::vector;
 use primitives::number::*;
 use primitives::Plane;
 
-use bidir_map::BidirMap;
-use std::collections::BTreeMap;
+// use bidir_map::BidirMap;
+// use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::collections::HashMap;
-use std::collections::HashSet;
+
+// use std::collections::HashSet;
 
 use std::io::{Result, ErrorKind, Error};
 use byteorder::{ReadBytesExt, LittleEndian, WriteBytesExt};
@@ -35,7 +36,7 @@ pub(crate) struct MeshTriangle {
 
 
 impl MeshTriangle {
-    fn new(ps : &Vec<point::Point>, normal: vector::Vector) -> MeshTriangle {
+    fn new(/*ps : &Vec<point::Point>,*/ normal: vector::Vector) -> MeshTriangle {
         MeshTriangle {
             normal: normal,
             ips: Vec::new(),
@@ -160,7 +161,7 @@ impl BinaryStlFile {
 
         debug!("add_triangle: {:?}", ps);
 
-        let mut m_tr = MeshTriangle::new(&ps, normal);
+        let mut m_tr = MeshTriangle::new(/*&ps,*/ normal);
 
         let it : usize = self.max_tr_index.clone();
         self.max_tr_index += 1;
@@ -220,12 +221,13 @@ impl BinaryStlFile {
     }
 
     fn read_triangle<T: ReadBytesExt>(&mut self, input: &mut T) -> Result<()> {
-        let normal : vector::Vector = Mesh::read_point(input)?.convert_to_vector();
+        /*let normal : vector::Vector =*/ Mesh::read_point(input)?.convert_to_vector();
 
         let v1 = Mesh::read_point(input)?;
         let v2 = Mesh::read_point(input)?;
         let v3 = Mesh::read_point(input)?;
-        let attr_count = input.read_u16::<LittleEndian>()?;
+
+        /*let attr_count =*/ input.read_u16::<LittleEndian>()?;
 
 
         //self.add_triangle(Triangle::new_with_normal(vec![v1, v2, v3], normal));
@@ -357,6 +359,39 @@ impl BinaryStlFile {
         Ok(())
     }
 
+    pub(crate) fn get_triangles_and_neighbours(&self) -> (HashMap<usize, Triangle>, HashMap<usize, BTreeSet<usize>>) {
+        let mut ts: HashMap<usize, Triangle> = HashMap::new();
+        let mut ns: HashMap<usize, BTreeSet<usize>> = HashMap::new();
+
+        for (k, v) in self.index_to_triangle.iter() {
+            ts.insert(*k, self.get_triangle(*k));
+
+            let mut set : BTreeSet<usize> = BTreeSet::new();
+            set.extend(v.ins.clone());
+            ns.insert(*k, set);
+        }
+
+        return (ts, ns);
+    }
+
+    /// This method returns a reference to HashMap, containing pairs `(id, point)`.
+    /// `id` - unique identifier of a point.
+    /// `point` - a point in mesh.
+    pub fn get_points(&self) -> &HashMap<usize, point::Point> {
+        return &self.ip_to_p;
+    }
+
+    /// This method returns `Vec`, containing indexes of triangles.
+    /// Use `get_triangle(&self, index : usize)` to get `Triangle`.
+    pub fn get_it_iterator(&self) -> Vec<usize>
+    {
+        let mut res : Vec<usize> = Vec::new();
+        for k in self.index_to_triangle.keys() {
+            res.push(k.clone());
+        }
+        return res;
+    }
+
     /// This method returns a copy of triangle by `index`.
     /// # Arguments
     ///
@@ -370,7 +405,6 @@ impl BinaryStlFile {
         return Triangle::new_with_normal(vec![p1,p2,p3], mt.normal.clone());
     }
 
-
     /// This method returns a copy of triangle by `index` with a reversed normal.
     /// # Arguments
     ///
@@ -383,6 +417,7 @@ impl BinaryStlFile {
 
         return Triangle::new_with_normal(vec![p2,p1,p3], mt.normal.clone());
     }
+
 
     pub(crate) fn get_number_of_coincident_points(&self, it1: usize, it2: usize) -> usize {
         let mut t1_ipset: BTreeSet<usize> = BTreeSet::new();
@@ -414,6 +449,7 @@ impl BinaryStlFile {
         return res;
     }
 
+    #[allow(dead_code)]
     pub(crate) fn geometry_check(&self) -> bool {
         debug!("geometry check is performing ...");
         for index in 0..self.index_to_triangle.len() {
@@ -442,13 +478,9 @@ impl BinaryStlFile {
 
 #[cfg(test)]
 mod test {
-    use std;
+    // use std;
     use std::io::Cursor;
     use std::fs::File;
-
-    use bidir_map::BidirMap;
-    use std::collections::BTreeMap;
-    use std::collections::BTreeSet;
 
     use primitives::point;
     use primitives::mesh;
@@ -507,12 +539,12 @@ mod test {
 
         match mesh::Mesh::read_stl(&mut f) {
             Ok(stl) => {
-                assert!(stl.header.num_triangles == mesh.header.num_triangles);
-                assert!(stl.index_to_triangle.len() == 1);
-                assert!(stl.index_to_triangle[&0] == mesh.index_to_triangle[&0]);
-                assert!(stl.ip_to_p.get(&0) == mesh.ip_to_p.get(&0));
-                assert!(stl.ip_to_p.get(&1) == mesh.ip_to_p.get(&1));
-                assert!(stl.ip_to_p.get(&2) == mesh.ip_to_p.get(&2));
+                assert_eq!(stl.header.num_triangles, mesh.header.num_triangles);
+                assert_eq!(stl.index_to_triangle.len(), 1);
+                assert_eq!(stl.index_to_triangle[&0], mesh.index_to_triangle[&0]);
+                assert_eq!(stl.ip_to_p.get(&0), mesh.ip_to_p.get(&0));
+                assert_eq!(stl.ip_to_p.get(&1), mesh.ip_to_p.get(&1));
+                assert_eq!(stl.ip_to_p.get(&2), mesh.ip_to_p.get(&2));
             },
             Err(_) => {
                 panic!();

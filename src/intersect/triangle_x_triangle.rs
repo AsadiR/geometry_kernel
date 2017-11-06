@@ -41,10 +41,12 @@ impl ResTxT {
         }
     }
 
+    #[allow(dead_code)]
     pub fn get_tuple(self) -> (Option<Point>, Option<Segment>, Option<Polygon>, InfoTxT) {
         return (self.point, self.segment, self.polygon, self.info)
     }
 
+    #[allow(dead_code)]
     pub fn get_point(self) -> Point {
         return self.point.unwrap();
     }
@@ -79,10 +81,10 @@ pub fn intersect(tr1 : &Triangle, tr2 : &Triangle) -> ResTxT {
         if polygon.points.len() == 0 {
             return ResTxT::new(None, None, None, InfoTxT::CoplanarNotIntersecting);
         } else if polygon.points.len() == 1 {
-            let Polygon {mut points, normal} = polygon;
+            let Polygon {mut points, normal: _} = polygon;
             return ResTxT::new(Some(points.remove(0)), None, None, InfoTxT::IntersectingInAPoint);
         } else if polygon.points.len() == 2 {
-            let Polygon {mut points, normal} = polygon;
+            let Polygon {mut points, normal: _} = polygon;
             let os = Some(Segment::new(points.remove(0), points.remove(0)));
             return ResTxT::new(None, os, None, InfoTxT::Intersecting);
         }  else {
@@ -234,6 +236,7 @@ impl PointDirGraph {
         }
     }
 
+    #[allow(dead_code)]
     pub fn print_graph(&self) {
         println!("Points:");
         for (i, point) in self.points.iter().enumerate() {
@@ -282,7 +285,7 @@ impl PointDirGraph {
                         wp_sets2[index2].insert(PointWrapper::new(point, s2));
                     },
                     (Option::None, Some(segment), segment_x_segment::InfoSxS::IntersectingInASegment) => {
-                        let Segment {org : org, dest : dest} = segment;
+                        let Segment {org, dest} = segment;
                         wp_sets1[index1].insert(PointWrapper::new(org.clone(), s1));
                         wp_sets1[index1].insert(PointWrapper::new(dest.clone(), s1));
 
@@ -419,7 +422,7 @@ pub fn intersect_triangles_in_the_plane(tr1: &Triangle, tr2: &Triangle) -> Polyg
                 }
             }
             return None;
-    }
+        }
     };
 
     loop {
@@ -544,6 +547,7 @@ mod tests {
         assert!(polygon.points.len() == 1);
     }
 
+    #[test]
     fn intersect_triangles_in_the_plane4() {
         // треугольники должны лежать в одной плоскости
 
@@ -562,6 +566,7 @@ mod tests {
         assert!(polygon.points.len() == 2);
     }
 
+    #[test]
     fn intersect_triangles_in_the_plane5() {
         // треугольники должны лежать в одной плоскости
 
@@ -716,12 +721,12 @@ mod tests {
         let p3 = Point::new_from_f64(2., 1., 2.);
         let tr2 = Triangle::new(vec![p1,p2,p3]);
 
-        let ep = Point::new_from_f64(-2., 2., 0.);
+        // let ep = Point::new_from_f64(-2., 2., 0.);
 
         let res : triangle_x_triangle::ResTxT = triangle_x_triangle::intersect(&tr2, &tr1);
 
 
-        if let (None, Some(s), None, triangle_x_triangle::InfoTxT::Intersecting) = res.clone().get_tuple()  {
+        if let (None, _, None, triangle_x_triangle::InfoTxT::Intersecting) = res.clone().get_tuple()  {
 
         } else {
             panic!("Wrong info: {:?}", res.get_info());

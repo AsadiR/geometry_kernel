@@ -1,13 +1,13 @@
 use primitives::point::Point;
-use primitives::vector::Vector;
+// use primitives::vector::Vector;
 use primitives::line::Line;
-use primitives::number_trait;
-use primitives::number_trait::NumberTrait;
+// use primitives::number_trait;
+// use primitives::number_trait::NumberTrait;
 use primitives::zero_trait::Zero;
 
 use std::fmt;
 use std::cmp::Ordering;
-use std::f64;
+// use std::f64;
 use std::mem::swap;
 
 #[derive(PartialEq,Eq)]
@@ -70,7 +70,7 @@ impl Segment {
 
 }
 
-pub enum SegmentsInfo {Parallel, Skew}
+// pub enum SegmentsInfo {Parallel, Skew}
 
 impl fmt::Display for Segment {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

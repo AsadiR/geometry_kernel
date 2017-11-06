@@ -5,10 +5,9 @@ use triangulation::incremental_triangulation::triangulate;
 
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::collections::BTreeSet;
+// use std::collections::BTreeSet;
 use std::collections::BTreeMap;
 use std::collections::hash_set;
-use std::vec;
 
 use log::LogLevel;
 use time::PreciseTime;
@@ -63,9 +62,9 @@ fn choose_correct_dp(ns: &Vec<Vector>, v: &Vector) -> Number {
 
 
     let mut odp: Option<Number> = None;
-    let mut on: Option<Vector> = None;
+    // let on: Option<Vector> = None;
 
-    let len_ns = ns.len();
+    // let len_ns = ns.len();
 
     let mut o_cos2 : Option<Number> = None;
     let len2_v = v.length2();
@@ -186,7 +185,7 @@ fn second_classification(t: &Triangle, tdesc: &mut TDesc) -> Marker {
 
 fn triangulate_all(it_to_desc: HashMap<usize, TDesc>) -> HashMap<Triangle, Marker> {
     let mut new_ts : HashMap<Triangle, Marker>  = HashMap::new();
-    for (it, mut tdesc) in it_to_desc.into_iter() {
+    for (_, mut tdesc) in it_to_desc.into_iter() {
         let mut points : Vec<Point> = Vec::new();
         for p in tdesc.get_points_drain_iter() {
             points.push(p);
@@ -210,6 +209,7 @@ fn triangulate_all(it_to_desc: HashMap<usize, TDesc>) -> HashMap<Triangle, Marke
     return new_ts;
 }
 
+#[allow(dead_code)]
 // Decorator for "old" triangle
 struct TDesc {
     it : usize,
@@ -267,9 +267,11 @@ impl TDesc {
         return self.points.drain();
     }
 
+    /*
     pub fn get_points_ref(&self) -> &HashSet<Point> {
         return &self.points;
     }
+    */
 
 
 
@@ -277,10 +279,12 @@ impl TDesc {
         return &self.s_to_ns;
     }
 
+    /*
     pub fn get_polygons_drain_iter(&mut self) -> vec::Drain<Polygon> {
         let len = self.polygons.len();
         return self.polygons.drain(0..len);
     }
+    */
 
     pub fn get_polygons_ref(&self) -> &Vec<Polygon> {
         return &self.polygons;
@@ -339,7 +343,7 @@ impl BoolOpPerformer {
 
         let m_x_m_start = PreciseTime::now();
         info!("Intersection of meshes is performing ...");
-        let mxm_res = mesh_x_mesh::intersect(&mesh_a, &mesh_b);
+        let mxm_res = mesh_x_mesh::intersect(&mesh_a, &mesh_b, 1);
         info!("<mesh_x_mesh::intersect> is finished in {0} seconds.", m_x_m_start.to(PreciseTime::now()));
 
         let mut a_it_to_tdec : HashMap<usize, TDesc> = HashMap::new();
@@ -421,8 +425,8 @@ impl BoolOpPerformer {
 
         let triangulation_start = PreciseTime::now();
         info!("<triangulate_all> has been started ...");
-        let mut new_ts_a : HashMap<Triangle, Marker> = triangulate_all(a_it_to_tdec);
-        let mut new_ts_b : HashMap<Triangle, Marker> = triangulate_all(b_it_to_tdec);
+        let new_ts_a : HashMap<Triangle, Marker> = triangulate_all(a_it_to_tdec);
+        let new_ts_b : HashMap<Triangle, Marker> = triangulate_all(b_it_to_tdec);
         info!("Triangulated intersection area, for model A, contains {0} triangles.", new_ts_a.len());
         info!("Triangulated intersection area, for model B, contains {0} triangles.", new_ts_b.len());
         info!("<triangulate_all> has been performed in {0} seconds.\n", triangulation_start.to(PreciseTime::now()));
@@ -446,7 +450,7 @@ impl BoolOpPerformer {
                 let mut num_of_planar_plus = 0;
                 let mut num_of_planar_minus = 0;
 
-                for (it, m) in it_to_marker.into_iter() {
+                for (_, m) in it_to_marker.into_iter() {
                     match m {
                         Marker::Inner => num_of_inner += 1,
                         Marker::Outer => num_of_outer += 1,
@@ -601,7 +605,7 @@ mod tests {
                     operations: Vec<BoolOpType>,
                     geometry_check: bool
     ) {
-        env_logger_init().unwrap_or_else(|x| ->  () {});
+        env_logger_init().unwrap_or_else(|_| ->  () {});
 
         let mut fa = File::open(input_file_name_a).unwrap();
         let mut fb = File::open(input_file_name_b).unwrap();
@@ -699,7 +703,8 @@ mod tests {
     #[test]
     fn test6() {
         bool_op_test("input_for_tests/skull.stl",
-                     "input_for_tests/sphere_in_origin.stl",
+                     //"input_for_tests/sphere_in_origin.stl",
+                     "input_for_tests/separating_plane.stl",
                      6, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection], false);
     }
 

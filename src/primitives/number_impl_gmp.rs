@@ -1,8 +1,8 @@
 use gmp::mpq::Mpq;
 use gmp::mpz::Mpz;
 
-use time::PreciseTime;
-use std::default::Default;
+// use time::PreciseTime;
+// use std::default::Default;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
@@ -18,7 +18,7 @@ pub type Number = NumberT<Mpq>;
 
 lazy_static! {
     static ref ZERO_VALUE : Number = Number::new(0.);
-    static ref LEAST_F32_VALUE : Number = Number::new(0.000001);
+    // static ref LEAST_F32_VALUE : Number = Number::new(0.000001);
     static ref VALUE_10_6 : Mpz = Mpz::from_str_radix("100000", 10).unwrap();
     static ref VALUE_10 : Mpz = Mpz::from_str_radix("10", 10).unwrap();
 }
@@ -244,7 +244,7 @@ impl NumberTrait<Number> for Number {
                 return opt_numer.unwrap() / opt_denom.unwrap();
             }
         }
-        panic!("Something goes wrong!");
+        // panic!("Something goes wrong!");
     }
 
     fn abs(self) -> Number {

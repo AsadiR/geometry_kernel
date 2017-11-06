@@ -6,9 +6,9 @@ use num::Zero as NumZero;
 use num::FromPrimitive;
 use num::ToPrimitive;
 use num::bigint::BigInt;
-use num::rational::{Ratio, BigRational, Rational64};
-use time::PreciseTime;
-use std::default::Default;
+use num::rational::{/*Ratio,*/ BigRational /*, Rational64*/};
+// use time::PreciseTime;
+// use std::default::Default;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
@@ -23,7 +23,7 @@ use std::ops::{Add, Sub, Mul, Div, Neg};
 pub type Number = NumberT<BigRational>;
 
 lazy_static! {
-    static ref LEAST_F32_VALUE : Number = Number::new(0.000001);
+    // static ref LEAST_F32_VALUE : Number = Number::new(0.000001);
     static ref VALUE_10_6 : BigInt = BigInt::from_u64(1000000).unwrap();
     static ref VALUE_10 : BigInt = BigInt::from_u64(10).unwrap();
 }
@@ -248,7 +248,7 @@ impl NumberTrait<Number> for Number {
                 return opt_numer.unwrap() / opt_denom.unwrap();
             }
         }
-        panic!("Something goes wrong!");
+        // panic!("Something goes wrong!");
     }
 
     fn abs(self) -> Number {

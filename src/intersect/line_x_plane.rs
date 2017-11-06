@@ -1,11 +1,13 @@
 use primitives::*;
 
+
 pub enum InfoLxP {
     Collinear,
     LineContainedInPlane,
     Intersecting
 }
 
+#[allow(dead_code)]
 pub fn intersect(l : &Line, p : &Plane) -> (Option<Point>, InfoLxP) {
     let dir_v = l.get_dir_vector();
     let dp = dir_v.dot_product(&p.normal);

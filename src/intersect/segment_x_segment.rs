@@ -1,7 +1,7 @@
 
 use primitives::*;
 use intersect::line_x_line;
-use std::collections::BTreeSet;
+// use std::collections::BTreeSet;
 use intersect::point_wrapper::PointWrapper;
 
 #[derive(Debug)]

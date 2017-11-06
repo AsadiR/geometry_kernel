@@ -1,11 +1,11 @@
 use std::collections::BTreeSet;
-use std::f64;
+// use std::f64;
 use primitives::*;
 use matrix::*;
 use intersect::line_x_line;
 
 use log::LogLevel;
-use time::PreciseTime;
+// use time::PreciseTime;
 
 pub fn triangulate(mut points : Vec<Point>, mut plane: Plane) -> Vec<Triangle> {
     // all points should be unique! Otherwise algorithm will hang out!
@@ -39,7 +39,7 @@ pub fn triangulate(mut points : Vec<Point>, mut plane: Plane) -> Vec<Triangle> {
 
     let iv = Vector::new_from_f64(1., 0., 0.);
     let jv = Vector::new_from_f64(0., 1., 0.);
-    let mut orientation : Number = iv.mixed_product(&jv, plane.get_ref_normal());
+    let orientation : Number = iv.mixed_product(&jv, plane.get_ref_normal());
 
     debug!("plane: {:?}", plane);
     debug!("d: {0}", plane.get_ref_d().clone().convert_to_f32());
@@ -257,15 +257,15 @@ fn classify_normal(n : &Vector) -> NormalType {
 
 fn get_segment_normal(s : &Segment, plane: &Plane) -> Line {
     let e : Vector = &s.dest - &s.org;
-    let M : Point = s.org.clone() + e.clone()* Number::new(1./2.);
+    let point_m : Point = s.org.clone() + e.clone()* Number::new(1./2.);
 
     /*
         лежит в плоскости
-        n.x*L.x + n.y*L.y + n.z*L.z = -d
+        n.x*point_l.x + n.y*point_l.y + n.z*point_l.z = -d
         ML перпендикулярен e
-        e.x*L.x + e.y*L.y + e.z*L.z = e.x*M.x + e.y*M.y + e.z*M.z
-        L находится справа от s
-        e.x*L.y - e.y*L.x  = e.x*s.org.y - e.y*s.org.x - 1
+        e.x*point_l.x + e.y*point_l.y + e.z*point_l.z = e.x*point_m.x + e.y*point_m.y + e.z*point_m.z
+        point_l находится справа от s
+        e.x*point_l.y - e.y*point_l.x  = e.x*s.org.y - e.y*s.org.x - 1
     */
     let normal = plane.get_ref_normal();
     let d = plane.get_ref_d();
@@ -275,23 +275,23 @@ fn get_segment_normal(s : &Segment, plane: &Plane) -> Line {
              Row::new_from_vector(vec![e.x.clone(), e.y.clone(), e.z.clone()]),
              Row::new_from_vector(vec![-e.y.clone(), e.x.clone(), Number::new(0.)])]);
 
-    let mut y : Row<Number> = Row::new_from_vector(
+    let y : Row<Number> = Row::new_from_vector(
         vec![-d.clone(),
-             &e.x*&M.x + &e.y*&M.y + &e.z*&M.z,
+             &e.x*&point_m.x + &e.y*&point_m.y + &e.z*&point_m.z,
              &e.x*&s.org.y - &e.y*&s.org.x - Number::new(1.)]);
 
     let x = a.solve(y);
     //println!("{}", x);
-    let mut vec_L : Vec<Number> = x.convert_to_vec();
-    let L = Point::new(vec_L.remove(0), vec_L.remove(0), vec_L.remove(0));
+    let mut vec_l : Vec<Number> = x.convert_to_vec();
+    let point_l = Point::new(vec_l.remove(0), vec_l.remove(0), vec_l.remove(0));
 
-    assert!((&L-&M).dot_product(&(&s.dest - &s.org)).is_it_zero());
-    assert!(plane.does_it_contain_point(&L));
-    assert!((&e.x*(&L.y - &s.org.y) - (&L.x - &s.org.x)*&e.y) == Number::new(-1.));
+    assert!((&point_l-&point_m).dot_product(&(&s.dest - &s.org)).is_it_zero());
+    assert!(plane.does_it_contain_point(&point_l));
+    assert_eq!((&e.x*(&point_l.y - &s.org.y) - (&point_l.x - &s.org.x)*&e.y), Number::new(-1.));
 
     debug!("plane: {:?}", plane);
     debug!("d: {0}", plane.get_ref_d().clone().convert_to_f32());
-    return Line::new(M, L);
+    return Line::new(point_m, point_l);
 }
 
 fn modify_points(
@@ -337,13 +337,11 @@ fn modify_points(
 
 #[cfg(test)]
 mod tests {
-    //use bo::*;
-    //use qm::*;
     use std::fs::File;
-    use std::collections::BTreeSet;
+    // use std::collections::BTreeSet;
     use primitives::*;
     use triangulation::incremental_triangulation::triangulate;
-    use env_logger::init  as env_logger_init;
+    // use env_logger::init  as env_logger_init;
 
     #[test]
     fn triangulation_abc() {

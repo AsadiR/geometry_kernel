@@ -34,6 +34,7 @@ impl Line {
         &self.dest - &self.org
     }
 
+    #[allow(dead_code)]
     pub fn check_accessory(&self, point : &Point) -> bool {
         let dir_vec = self.get_dir_vector();
         let check_vec = &self.org - point;

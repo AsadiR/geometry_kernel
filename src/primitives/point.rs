@@ -1,17 +1,16 @@
 use primitives::vector;
-use primitives::number_trait;
 use std::cmp::Ordering;
-use std::f64::consts::PI;
+// use std::f64::consts::PI;
 use std::mem::swap;
-use log::LogLevel;
+// use log::LogLevel;
 use primitives::number::*;
 
 // for template constraint
 use primitives::signed_trait::Signed;
-use primitives::zero_trait::Zero;
-use std::fmt::Debug;
-use std::hash::Hash;
-use std::ops::{Add, Sub, Mul, Div, Neg};
+// use primitives::zero_trait::Zero;
+// use std::fmt::Debug;
+// use std::hash::Hash;
+use std::ops::{Add, Sub, /*Mul, Div, Neg*/};
 use std::cmp::Ord;
 use std::fmt;
 

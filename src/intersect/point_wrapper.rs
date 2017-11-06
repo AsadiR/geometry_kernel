@@ -13,7 +13,7 @@ impl PointWrapper {
         // p должна лежать внутри s, иначе сортировка не будет иметь смысла
         // сортируем по степени удаленности от начала отрезка
 
-        let mut t : Number;
+        let t : Number;
         if s.dest.x != s.org.x {
             t = (&p.x - &s.org.x) / (&s.dest.x - &s.org.x);
         } else if s.dest.y != s.org.y {

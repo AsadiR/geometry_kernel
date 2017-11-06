@@ -2,9 +2,9 @@ use std::ops::{Add, Sub, Mul, Div, Neg};
 use primitives::zero_trait::Zero;
 
 use std::clone::Clone;
-use std::mem;
+// use std::mem;
 use std::fmt::Display;
-use std::iter::Rev;
+// use std::iter::Rev;
 
 
 pub struct Row<T>
@@ -45,7 +45,7 @@ impl<T> Row<T>
 {
     pub fn new(n : usize) -> Row<T> {
         let mut r = Row {values : Vec::new()};
-        for i in 0..n {
+        for _ in 0..n {
             r.values.push(T::zero());
         }
         return r
@@ -80,6 +80,7 @@ impl<T> Row<T>
     }
 }
 
+#[allow(dead_code)]
 impl<T> Matrix<T>
     where T:
         Add<Output = T> +
@@ -92,7 +93,7 @@ impl<T> Matrix<T>
 {
     pub fn new(n : usize) -> Matrix<T> {
         let mut m = Matrix {rows : Vec::new()};
-        for i in 0..n {
+        for _ in 0..n {
             m.rows.push(Row::new(n));
         }
         return m
@@ -112,6 +113,7 @@ impl<T> Matrix<T>
         self.rows[*i].values[*j] = value;
     }
 
+    #[allow(dead_code)]
     pub fn print(&self) {
         for i in 0..self.number_of_rows() {
             let ref row = self.rows[i];
@@ -229,7 +231,7 @@ mod tests {
             ]
         );
 
-        let mut b : Row<f32> = Row::new_from_vector(vec![3., 2., 3.]);
+        let b : Row<f32> = Row::new_from_vector(vec![3., 2., 3.]);
 
         let x  = m.solve(b);
 
@@ -244,7 +246,7 @@ mod tests {
 
     #[test]
     fn solver_test2() {
-        let n = 3;
+        // let n = 3;
         let mut m : Matrix<f32> = Matrix::new_from_vector(
             vec![
                 Row::new_from_vector(vec![0., 1., 2.]),
@@ -253,14 +255,17 @@ mod tests {
             ]
         );
 
-        let mut b : Row<f32> = Row::new_from_vector(vec![4., 1., 7.]);
+        let b : Row<f32> = Row::new_from_vector(vec![4., 1., 7.]);
 
         let x  = m.solve(b);
 
 
+        /*
         for i in 0..n {
-            // println!("x[{0}] = {1}", i, x.get(&i));
+            println!("x[{0}] = {1}", i, x.get(&i));
         }
+        */
+
         assert!(x.values == vec![3., 2., 1.]);
 
     }
@@ -268,7 +273,7 @@ mod tests {
 
     #[test]
     fn solver_test3() {
-        let n = 3;
+        // let n = 3;
         let mut m : Matrix<f32> = Matrix::new_from_vector(
             vec![
                 Row::new_from_vector(vec![1., 2., 3.]),
@@ -277,14 +282,16 @@ mod tests {
             ]
         );
 
-        let mut b : Row<f32> = Row::new_from_vector(vec![9., 11., 3.]);
+        let b : Row<f32> = Row::new_from_vector(vec![9., 11., 3.]);
 
         let x  = m.solve(b);
 
-
+        /*
         for i in 0..n {
             // println!("x[{0}] = {1}", i, x.get(&i));
         }
+        */
+
         assert!(x.values == vec![2., 2., 1.]);
 
     }
@@ -292,7 +299,7 @@ mod tests {
 
     #[test]
     fn solver_test_rational1() {
-        let n = 3;
+        // let n = 3;
         let mut m : Matrix<Number> = Matrix::new_from_vector(
             vec![
                 Row::new_from_vector(vec![Number::new_from_f32(1.), Number::new_from_f32(2.), Number::new_from_f32(3.)]),
@@ -301,14 +308,16 @@ mod tests {
             ]
         );
 
-        let mut b : Row<Number> = Row::new_from_vector(vec![Number::new_from_f32(9.), Number::new_from_f32(11.), Number::new_from_f32(3.)]);
+        let b : Row<Number> = Row::new_from_vector(vec![Number::new_from_f32(9.), Number::new_from_f32(11.), Number::new_from_f32(3.)]);
 
         let x  = m.solve(b);
 
-
+        /*
         for i in 0..n {
             // println!("x[{0}] = {1}", i, x.get(&i));
         }
+        */
+
         assert!(x.values == vec![Number::new_from_f32(2.), Number::new_from_f32(2.), Number::new_from_f32(1.)]);
 
     }

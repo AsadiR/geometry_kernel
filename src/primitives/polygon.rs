@@ -1,6 +1,6 @@
 use primitives::point::Point;
 use primitives::vector::Vector;
-use primitives::segment::Segment;
+// use primitives::segment::Segment;
 
 #[derive(Clone)]
 #[derive(Debug, Hash)]

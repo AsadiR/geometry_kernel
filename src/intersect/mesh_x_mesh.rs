@@ -1,7 +1,7 @@
 use intersect::triangle_x_triangle;
 use primitives::*;
-use intersect::tuple_iter::{TupleIter, enumerate_simple};
-use log::LogLevel;
+use intersect::tuple_iter::{/*TupleIter,*/ enumerate_simple, TreeAABT};
+// use log::LogLevel;
 use time::PreciseTime;
 
 pub struct IntersectionResult {
@@ -21,12 +21,22 @@ impl IntersectionResult {
 }
 
 
-pub fn intersect(a : &Mesh, b : &Mesh) -> IntersectionResult {
+pub fn intersect(a : &Mesh, b : &Mesh, use_tree: usize) -> IntersectionResult {
     info!("<mesh_x_mesh::intersect> was started!");
     let start = PreciseTime::now();
 
     info!("The enumerating of indexes is performing ...");
-    let triangles_enum = enumerate_simple(a, b);
+    let triangles_enum = if use_tree == 0 {
+        enumerate_simple(a, b)
+    } else {
+        let tree_a = TreeAABT::new(a);
+        let tree_b = TreeAABT::new(b);
+        TreeAABT::intersect_trees(&tree_a, &tree_b)
+    };
+
+    debug!("Number of pairs: {0}", triangles_enum.v.len());
+
+
     let mut res_mxm_list : Vec<(usize, usize, triangle_x_triangle::ResTxT)> = Vec::new();
 
 

@@ -1,6 +1,6 @@
 use primitives::*;
 use matrix::*;
-use std::mem;
+// use std::mem;
 
 
 pub enum InfoLxL {
@@ -14,9 +14,9 @@ pub enum InfoLxL {
 // http://mathhelpplanet.com/static.php?p=vzaimnoe-raspolozhenie-pryamyh-v-prostranstve
 pub fn intersect(a : &Line, b : &Line) -> (Option<Point>, InfoLxL) {
     let m1 : &Point = &a.org;
-    let mut l1 : Vector = &a.dest - &a.org;
+    let l1 : Vector = &a.dest - &a.org;
     let m2 : &Point = &b.org;
-    let mut l2 : Vector = &b.dest - &b.org;
+    let l2 : Vector = &b.dest - &b.org;
     let mut m : Vector = &b.org - &a.org;
     if m.is_zero() {
         m = &b.org - &a.dest;
@@ -66,7 +66,7 @@ pub fn intersect(a : &Line, b : &Line) -> (Option<Point>, InfoLxL) {
              Row::new_from_vector(vec![l1.y.clone(), -l2.y.clone(), nv.y.clone()]),
              Row::new_from_vector(vec![l1.z.clone(), -l2.z.clone(), nv.z.clone()])]);
 
-    let mut y : Row<Number> = Row::new_from_vector(vec![&m2.x-&m1.x+&nv.x, &m2.y-&m1.y+&nv.y, &m2.z-&m1.z+&nv.z]);
+    let y : Row<Number> = Row::new_from_vector(vec![&m2.x-&m1.x+&nv.x, &m2.y-&m1.y+&nv.y, &m2.z-&m1.z+&nv.z]);
 
 
     //println!("matrix:");
@@ -87,9 +87,9 @@ pub fn intersect(a : &Line, b : &Line) -> (Option<Point>, InfoLxL) {
 // Дублирование во благо производительности
 pub fn intersect_p(a : &Line, b : &Line) -> Option<Number> {
     let m1 : &Point = &a.org;
-    let mut l1 : Vector = &a.dest - &a.org;
+    let l1 : Vector = &a.dest - &a.org;
     let m2 : &Point = &b.org;
-    let mut l2 : Vector = &b.dest - &b.org;
+    let l2 : Vector = &b.dest - &b.org;
     let mut m : Vector = &b.org - &a.org;
     if m.is_zero() {
         m = &b.org - &a.dest;
@@ -117,7 +117,7 @@ pub fn intersect_p(a : &Line, b : &Line) -> Option<Number> {
              Row::new_from_vector(vec![l1.y.clone(), -l2.y.clone(), nv.y.clone()]),
              Row::new_from_vector(vec![l1.z.clone(), -l2.z.clone(), nv.z.clone()])]);
 
-    let mut y : Row<Number> = Row::new_from_vector(vec![&m2.x-&m1.x+&nv.x, &m2.y-&m1.y+&nv.y, &m2.z-&m1.z+&nv.z]);
+    let y : Row<Number> = Row::new_from_vector(vec![&m2.x-&m1.x+&nv.x, &m2.y-&m1.y+&nv.y, &m2.z-&m1.z+&nv.z]);
 
     let x = a.solve(y);
     //println!("{}", x);

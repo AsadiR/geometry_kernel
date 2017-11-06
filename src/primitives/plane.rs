@@ -2,10 +2,11 @@ use primitives::vector::Vector;
 use primitives::point::Point;
 use primitives::number::Number;
 use primitives::zero_trait::Zero;
-use std::mem::swap;
+// use std::mem::swap;
 
 // n*(p-p0) = 0
 
+#[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub struct Plane {
     pub normal: Vector,
