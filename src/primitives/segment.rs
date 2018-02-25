@@ -10,7 +10,6 @@ use std::cmp::Ordering;
 // use std::f64;
 use std::mem::swap;
 
-#[derive(PartialEq,Eq)]
 #[derive(Clone)]
 #[derive(Debug, Hash)]
 pub struct Segment {
@@ -78,11 +77,25 @@ impl fmt::Display for Segment {
     }
 }
 
+impl PartialOrd for Segment {
+    fn partial_cmp(&self, other: &Segment) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Eq for Segment {}
+
+impl PartialEq for Segment {
+    fn eq(&self, other: &Segment) -> bool {
+        self.org == other.org &&  self.dest == other.dest || self.org == other.dest &&  self.dest == other.org
+    }
+}
+
+
 impl Ord for Segment {
     fn cmp(&self, other: &Segment) -> Ordering {
         match self {
-            _ if self.org == other.org &&  self.dest == other.dest || self.org == other.dest &&  self.dest == other.org
-                => Ordering::Equal,
+            _ if *self == *other => Ordering::Equal,
             _ if self.org < other.org => Ordering::Less,
             _ if self.org > other.org => Ordering::Greater,
             _ if self.dest < other.dest => Ordering::Less,
@@ -94,11 +107,7 @@ impl Ord for Segment {
 }
 
 
-impl PartialOrd for Segment {
-    fn partial_cmp(&self, other: &Segment) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
+
 
 
 

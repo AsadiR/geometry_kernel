@@ -2,6 +2,7 @@ use primitives::vector::Vector;
 use primitives::point::Point;
 use primitives::number::Number;
 use primitives::zero_trait::Zero;
+use primitives::to_2d_trait::To2D;
 // use std::mem::swap;
 
 // n*(p-p0) = 0
@@ -33,21 +34,6 @@ impl Plane {
         Plane::new(n, p0.clone())
     }
 
-    pub fn swap_yz(& mut self) {
-        self.normal.swap_yz();
-        self.point.swap_yz();
-    }
-
-    pub fn swap_xy(& mut self) {
-        self.normal.swap_xy();
-        self.point.swap_xy();
-    }
-
-    pub fn swap_xz(& mut self) {
-        self.normal.swap_xz();
-        self.point.swap_xz();
-    }
-
     pub fn does_it_contain_point(&self, point : &Point) -> bool {
         let dp = self.normal.dot_product(&(point - &self.point));
         //println!("dp: {0}", dp);
@@ -61,5 +47,22 @@ impl Plane {
 
     pub fn get_ref_normal(&self) -> &Vector {
         &self.normal
+    }
+}
+
+impl To2D for Plane {
+    fn swap_yz(& mut self) {
+        self.normal.swap_yz();
+        self.point.swap_yz();
+    }
+
+    fn swap_xy(& mut self) {
+        self.normal.swap_xy();
+        self.point.swap_xy();
+    }
+
+    fn swap_xz(& mut self) {
+        self.normal.swap_xz();
+        self.point.swap_xz();
     }
 }

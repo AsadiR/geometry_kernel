@@ -78,13 +78,13 @@ pub fn intersect(tr1 : &Triangle, tr2 : &Triangle) -> ResTxT {
 
     if dist1.is_it_zero() & dist2.is_it_zero() & dist3.is_it_zero() {
         let polygon = intersect_triangles_in_the_plane(tr1, tr2);
-        if polygon.points.len() == 0 {
+        if polygon.get_points_ref().len() == 0 {
             return ResTxT::new(None, None, None, InfoTxT::CoplanarNotIntersecting);
-        } else if polygon.points.len() == 1 {
-            let Polygon {mut points, normal: _} = polygon;
+        } else if polygon.get_points_ref().len() == 1 {
+            let (mut points, normal) = polygon.get_points_and_normal();
             return ResTxT::new(Some(points.remove(0)), None, None, InfoTxT::IntersectingInAPoint);
-        } else if polygon.points.len() == 2 {
-            let Polygon {mut points, normal: _} = polygon;
+        } else if polygon.get_points_ref().len() == 2 {
+            let (mut points, normal) = polygon.get_points_and_normal();
             let os = Some(Segment::new(points.remove(0), points.remove(0)));
             return ResTxT::new(None, os, None, InfoTxT::Intersecting);
         }  else {
@@ -339,7 +339,7 @@ fn update_map(point_to_verdict : &mut HashMap<Point, bool>, tr1 : &Triangle, tr2
     if !point_to_verdict.contains_key(&p) {
         point_to_verdict.insert(
             p.clone(),
-            tr1.does_triangle_contain_point(&p) && tr2.does_triangle_contain_point(&p)
+            tr1.does_triangle_contain_point(&p, false) && tr2.does_triangle_contain_point(&p, false)
         );
     }
 }
@@ -352,13 +352,13 @@ pub fn intersect_triangles_in_the_plane(tr1: &Triangle, tr2: &Triangle) -> Polyg
     let mut polygon : Polygon = Polygon::new(Vec::new(), tr1.get_normal());
 
 
-    let t1_p0_in_t2 = tr2.does_triangle_contain_point(tr1.get_ref(0));
-    let t1_p1_in_t2 = tr2.does_triangle_contain_point(tr1.get_ref(1));
-    let t1_p2_in_t2 = tr2.does_triangle_contain_point(tr1.get_ref(2));
+    let t1_p0_in_t2 = tr2.does_triangle_contain_point(tr1.get_ref(0), false);
+    let t1_p1_in_t2 = tr2.does_triangle_contain_point(tr1.get_ref(1), false);
+    let t1_p2_in_t2 = tr2.does_triangle_contain_point(tr1.get_ref(2), false);
 
-    let t2_p0_in_t1 = tr1.does_triangle_contain_point(tr2.get_ref(0));
-    let t2_p1_in_t1 = tr1.does_triangle_contain_point(tr2.get_ref(1));
-    let t2_p2_in_t1 = tr1.does_triangle_contain_point(tr2.get_ref(2));
+    let t2_p0_in_t1 = tr1.does_triangle_contain_point(tr2.get_ref(0), false);
+    let t2_p1_in_t1 = tr1.does_triangle_contain_point(tr2.get_ref(1), false);
+    let t2_p2_in_t1 = tr1.does_triangle_contain_point(tr2.get_ref(2), false);
 
 
     if t1_p0_in_t2 && t1_p1_in_t2 && t1_p2_in_t2 {
@@ -506,7 +506,7 @@ mod tests {
 
         let polygon : Polygon = triangle_x_triangle::intersect_triangles_in_the_plane(&tr1, &tr2);
 
-        assert!(polygon.points.len() == 3);
+        assert!(polygon.get_points_ref().len() == 3);
     }
 
     #[test]
@@ -525,7 +525,7 @@ mod tests {
 
         let polygon : Polygon = triangle_x_triangle::intersect_triangles_in_the_plane(&tr1, &tr2);
 
-        assert!(polygon.points.len() == 0);
+        assert!(polygon.get_points_ref().len() == 0);
     }
 
     #[test]
@@ -544,7 +544,7 @@ mod tests {
 
         let polygon : Polygon = triangle_x_triangle::intersect_triangles_in_the_plane(&tr1, &tr2);
 
-        assert!(polygon.points.len() == 1);
+        assert!(polygon.get_points_ref().len() == 1);
     }
 
     #[test]
@@ -563,7 +563,7 @@ mod tests {
 
         let polygon : Polygon = triangle_x_triangle::intersect_triangles_in_the_plane(&tr1, &tr2);
 
-        assert!(polygon.points.len() == 2);
+        assert!(polygon.get_points_ref().len() == 2);
     }
 
     #[test]
@@ -582,7 +582,7 @@ mod tests {
 
         let polygon : Polygon = triangle_x_triangle::intersect_triangles_in_the_plane(&tr1, &tr2);
 
-        assert!(polygon.points.len() == 3);
+        assert!(polygon.get_points_ref().len() == 3);
     }
 
 

@@ -4,6 +4,7 @@ use std::cmp::Ordering;
 use std::mem::swap;
 // use log::LogLevel;
 use primitives::number::*;
+use primitives::to_2d_trait::To2D;
 
 // for template constraint
 use primitives::signed_trait::Signed;
@@ -28,14 +29,14 @@ pub struct Point
 impl fmt::Debug for Point {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // write!(f, "Point [{:?}, {:?}, {:?}]", self.x.clone().convert_to_f32(), self.y.clone().convert_to_f32(), self.z.clone().convert_to_f32())
-        write!(f, "Point [{0} <{1}>, {2} <{3}>, {4}<{5}>]",
+        write!(f, "Point [{0} <{1}>, {2} <{3}>, {4} <{5}>]",
                self.x.value, self.x.clone().convert_to_f32(),
                self.y.value, self.y.clone().convert_to_f32(),
                self.z.value, self.z.clone().convert_to_f32())
     }
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 pub(crate) enum EPointPosition {
     Left,
     Right,
@@ -78,18 +79,6 @@ impl Point {
         Point{x: Number::new(x), y: Number::new(y), z: Number::new(z)}
     }
 
-    pub(crate) fn swap_yz(& mut self) {
-        swap(&mut self.y, &mut self.z);
-    }
-
-    pub(crate) fn swap_xy(& mut self) {
-        swap(&mut self.x, &mut self.y);
-    }
-
-    pub(crate) fn swap_xz(& mut self) {
-        swap(&mut self.x, &mut self.z);
-    }
-
 
     pub(crate) fn classify(&self, p0 : &Point, p1 : &Point) -> EPointPosition {
         let a = p1 - p0;
@@ -105,6 +94,30 @@ impl Point {
             _ if *p1 == *self => return EPointPosition::Dest,
             _ => return EPointPosition::Between
         }
+    }
+
+    pub(crate) fn rotate_x(&mut self, angle: &Number) {
+        // TODO rotation around an arbitrary axis
+        let new_y = &self.y*angle.approx_cos(3) - &self.z*angle.approx_sin(3);
+        let new_z = &self.y*angle.approx_sin(3) + &self.z*angle.approx_cos(3);
+        self.y = new_y;
+        self.z = new_z;
+    }
+
+
+}
+
+impl To2D for Point {
+    fn swap_yz(& mut self) {
+        swap(&mut self.y, &mut self.z);
+    }
+
+    fn swap_xy(& mut self) {
+        swap(&mut self.x, &mut self.y);
+    }
+
+    fn swap_xz(& mut self) {
+        swap(&mut self.x, &mut self.z);
     }
 }
 

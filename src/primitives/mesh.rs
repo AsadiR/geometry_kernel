@@ -9,7 +9,8 @@ use primitives::Plane;
 // use bidir_map::BidirMap;
 // use std::collections::BTreeMap;
 use std::collections::BTreeSet;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+
 
 // use std::collections::HashSet;
 
@@ -30,7 +31,7 @@ pub(crate) struct MeshTriangle {
     // Indexes of PointS in this triangle
     pub ips : Vec<usize>,
     pub attr_byte_count: u16,
-    // Indexes of NeighborS in this triangle
+    // Indexes of NeighborS for this triangle
     pub ins: Vec<usize>
 }
 
@@ -63,8 +64,8 @@ impl MeshTriangle {
         }
         return false;
     }
-
 }
+
 
 impl PartialEq for MeshTriangle {
     fn eq(&self, rhs: &MeshTriangle) -> bool {
@@ -149,12 +150,18 @@ impl BinaryStlFile {
     /// # Arguments
     ///
     /// * `tr` - A triangle to add
-    pub fn add_triangle(&mut self, tr : Triangle) -> usize {
+    pub fn add_triangle(&mut self, tr : Triangle) -> Result<usize> {
         if tr.degradation_level() != 0
         {
-            panic!("ERROR: useless triangle {:?}", tr);
-            //return
+            // panic!("ERROR: useless triangle {:?}", tr);
+            return Err(
+                Error::new(
+                    ErrorKind::Other,
+                    format!("ERROR: useless triangle {:?}", tr)
+                )
+            );
         }
+
 
         let normal = tr.get_normal();
         let ps = tr.get_points();
@@ -194,7 +201,7 @@ impl BinaryStlFile {
         self.header.num_triangles += 1;
 
         // TODO убрать возможность вставлять одинаоквые треугольники
-        return it;
+        return Ok(it);
     }
 
     /// This method adds each triangle from a vector of triangles to the topology.
@@ -203,7 +210,7 @@ impl BinaryStlFile {
     /// * `ts` - A vector of triangles
     pub fn add_triangles(&mut self, ts : Vec<Triangle>) {
         for t in ts {
-            self.add_triangle(t);
+            self.add_triangle(t).ok();
         }
     }
 
@@ -231,7 +238,7 @@ impl BinaryStlFile {
 
 
         //self.add_triangle(Triangle::new_with_normal(vec![v1, v2, v3], normal));
-        self.add_triangle(Triangle::new(vec![v1, v2, v3]));
+        self.add_triangle(Triangle::new(vec![v1, v2, v3])).ok();
 
         Ok(())
     }
@@ -249,15 +256,25 @@ impl BinaryStlFile {
     }
 
     pub(crate) fn remove_triangle(&mut self, index: &usize) {
-        /*
-        использовать осторожно:
-        поля ins в MeshTriangle по прежнему могут содеражть индексы удаленных треугольников
-        ip_to_its - тоже может содержать индексы удаленных треугольников в векторах.
-        */
-        let res = self.index_to_triangle.remove(index);
-        if res.is_some() {
-            self.header.num_triangles -= 1;
+        let opt_removed_t = self.index_to_triangle.remove(index);
+
+        if opt_removed_t.is_none() {
+            return;
         }
+
+        let removed_t = opt_removed_t.unwrap();
+
+        for index_of_n in removed_t.ins.iter() {
+            let nt = self.index_to_triangle.get_mut(index_of_n).unwrap();
+            nt.ins.retain(|&x| &x != index);
+        }
+
+        for ip in removed_t.ips.iter() {
+            self.ip_to_its.get_mut(ip).unwrap().retain(|&x| &x != index);
+        }
+
+        self.header.num_triangles -= 1;
+
     }
 
     fn read_header<T: ReadBytesExt>(input: &mut T) -> Result<BinaryStlHeader> {
@@ -419,6 +436,14 @@ impl BinaryStlFile {
     }
 
 
+    /// This method returns a `Vec`, containing indexes of adjacent triangles for the triangle specified by `index`.
+    /// # Arguments
+    ///
+    /// * `index` - An index of triangle.
+    pub fn get_indexes_of_neighbours(&self, index : usize) -> Vec<usize> {
+        return self.index_to_triangle.get(&index).unwrap().ins.clone();
+    }
+
     pub(crate) fn get_number_of_coincident_points(&self, it1: usize, it2: usize) -> usize {
         let mut t1_ipset: BTreeSet<usize> = BTreeSet::new();
         t1_ipset.extend(self.index_to_triangle[&it1].ips.clone());
@@ -449,16 +474,22 @@ impl BinaryStlFile {
         return res;
     }
 
+    /// This method checks if each triangle has three adjacent triangles.
     #[allow(dead_code)]
-    pub(crate) fn geometry_check(&self) -> bool {
+    pub fn geometry_check(&self) -> bool {
+        // Проверяем, что у каждого треугольника ровно три треугольника соседа.
+        // Если это условие нарушается, то в геометрии присутствуют дыры или самопересечения.
+
         debug!("geometry check is performing ...");
-        for index in 0..self.index_to_triangle.len() {
-            let sc_ts = self.find_segment_conjugated_triangles(index);
+        let index_to_triangle = self.index_to_triangle.clone();
+
+        for (index, _) in index_to_triangle.iter() {
+            let sc_ts = self.find_segment_conjugated_triangles(*index);
 
             if sc_ts.len() != 3 {
                 debug!("\t{:?}", sc_ts);
 
-                debug!("\tnum of nts is {0}", self.index_to_triangle[&index].ins.len());
+                debug!("\tnum of nts is {0}", self.index_to_triangle[index].ins.len());
                 debug!("\tnum of cts is {0}", sc_ts.len());
                 for it in sc_ts {
                     debug!("\tt: {:?}", self.get_triangle(it));
@@ -474,6 +505,50 @@ impl BinaryStlFile {
         return true;
     }
 
+
+    /// This method returns `Vec` of connectivity components.
+    pub fn split_into_connectivity_components(self) -> Vec<Mesh> {
+        let mut res : Vec<Mesh>  = Vec::new();
+        let mut visited : HashSet<usize> = HashSet::new();
+        for it in self.get_it_iterator() {
+            if !visited.contains(&it) {
+                let mut mesh = Mesh::new();
+                let mut to_visit : Vec<usize> = vec![it];
+                while !to_visit.is_empty() {
+                    let extracted_index = to_visit.pop().unwrap();
+                    if !visited.contains(&extracted_index) {
+                        mesh.add_triangle(self.get_triangle(extracted_index)).ok();
+                        visited.insert(extracted_index);
+                        to_visit.extend(self.get_indexes_of_neighbours(extracted_index));
+                    }
+                }
+                res.push(mesh);
+            }
+        }
+
+        return res;
+    }
+
+
+    pub(crate) fn rotate_x(&mut self, angle: Number) {
+        let start = PreciseTime::now();
+
+        for (ip, p) in self.ip_to_p.iter_mut() {
+            self.p_to_ip.remove(p);
+            p.rotate_x(&angle);
+            self.p_to_ip.insert(p.clone(), ip.clone());
+        }
+
+        let mut index_to_triangle = self.index_to_triangle.clone();
+
+        for (it, mt) in index_to_triangle.iter_mut() {
+            mt.normal = self.get_triangle(*it).calculate_normal();
+        }
+
+        self.index_to_triangle = index_to_triangle;
+
+        info!("Rotation is finished in {0} seconds.\n", start.to(PreciseTime::now()));
+    }
 }
 
 #[cfg(test)]
@@ -481,24 +556,19 @@ mod test {
     // use std;
     use std::io::Cursor;
     use std::fs::File;
-
-    use primitives::point;
-    use primitives::mesh;
-    use primitives::triangle::Triangle;
+    use primitives::*;
 
     #[test]
     fn write_read() {
         // Make sure we can write and read a simple file.
-        let mut mesh = mesh::Mesh::new();
+        let mut mesh = Mesh::new();
         let t = Triangle::new(
-            vec![point::Point::new_from_f64(0f64, 0f64, 0f64),
-                 point::Point::new_from_f64(0f64, 0f64, 1f64),
-                 point::Point::new_from_f64(1f64, 0f64, 1f64),]
+            vec![Point::new_from_f64(0f64, 0f64, 0f64),
+                       Point::new_from_f64(0f64, 0f64, 1f64),
+                       Point::new_from_f64(1f64, 0f64, 1f64),]
         );
 
-        mesh.add_triangle(t);
-
-
+        mesh.add_triangle(t).ok();
 
         let mut buffer = Vec::new();
 
@@ -509,9 +579,9 @@ mod test {
 
         match mesh::Mesh::read_stl(&mut Cursor::new(buffer)) {
             Ok(stl) => {
-                assert!(stl.header.num_triangles == mesh.header.num_triangles);
-                assert!(stl.index_to_triangle.len() == 1);
-                assert!(stl.index_to_triangle[&0] == mesh.index_to_triangle[&0])
+                assert_eq!(stl.header.num_triangles, mesh.header.num_triangles);
+                assert_eq!(stl.index_to_triangle.len(), 1);
+                assert_eq!(stl.index_to_triangle[&0], mesh.index_to_triangle[&0])
             },
             Err(_) => panic!()
         }
@@ -521,12 +591,12 @@ mod test {
     {
         let mut mesh = mesh::Mesh::new();
         let t = Triangle::new(
-            vec![point::Point::new_from_f64(0f64, 0f64, 0f64),
-                 point::Point::new_from_f64(0f64, 0f64, 1f64),
-                 point::Point::new_from_f64(1f64, 0f64, 1f64),]
+            vec![Point::new_from_f64(0f64, 0f64, 0f64),
+                       Point::new_from_f64(0f64, 0f64, 1f64),
+                       Point::new_from_f64(1f64, 0f64, 1f64),]
         );
 
-        mesh.add_triangle(t);
+        mesh.add_triangle(t).ok();
 
         let mut f = File::create(file_name).unwrap();
 
@@ -561,13 +631,35 @@ mod test {
     #[test]
     fn file_write_skull() {
         let mut f = File::open("input_for_tests/skull.stl").unwrap();
-        let mesh = mesh::Mesh::read_stl(&mut f).unwrap();
+        let mesh = Mesh::read_stl(&mut f).unwrap();
 
         let mut f = File::create("res_of_tests/import_export/skull_new.stl").unwrap();
         match mesh.write_stl(&mut f) {
             Ok(_) => (),
             Err(_) => panic!()
         };
+    }
+
+    #[test]
+    fn read_multi_component_mesh() {
+        let mut f = File::open("input_for_tests/figures_tor_cone_cube.stl").unwrap();
+        let mesh = Mesh::read_stl(&mut f).unwrap();
+        assert_eq!(mesh.split_into_connectivity_components().len(), 3);
+    }
+
+    #[test]
+    fn x_rotation_test() {
+        let mut f = File::open("input_for_tests/cylinder_8_a.stl").unwrap();
+        let mut mesh = Mesh::read_stl(&mut f).unwrap();
+
+        mesh.rotate_x(Number::new(70f64));
+
+        let mut f = File::create("res_of_tests/import_export/rotated_cylinder.stl").unwrap();
+        match mesh.write_stl(&mut f) {
+            Ok(_) => (),
+            Err(_) => panic!()
+        };
+
     }
 }
 

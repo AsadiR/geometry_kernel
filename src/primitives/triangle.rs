@@ -4,6 +4,7 @@ use primitives::vector::Vector;
 use primitives::number::*;
 use primitives::zero_trait::Zero;
 use primitives::signed_trait::Signed;
+use primitives::to_2d_trait::To2D;
 use primitives::segment::Segment;
 // use std::collections::BTreeSet;
 
@@ -52,6 +53,11 @@ impl Triangle {
         return t;
     }
 
+    /// This method returns the mutable reference to the `Vec<Point>`, containing the triangle points.
+    pub fn get_points_mut_ref(&mut self) -> &mut Vec<Point> {
+        return &mut self.points;
+    }
+
     /// This method returns the reference to the `Vec<Point>`, containing the triangle points.
     pub fn get_points_ref(&self) -> &Vec<Point> {
         return &self.points;
@@ -97,12 +103,18 @@ impl Triangle {
         }
     }
 
+    pub(crate) fn calculate_normal(&self) -> Vector {
+        let v1 = self.get_ref(0) - self.get_ref(1);
+        let v2 = self.get_ref(1) - self.get_ref(2);
+        return v1.cross_product(&v2);
+    }
+
     pub(crate) fn reverse(&mut self) {
         self.points.swap(0, 1);
         self.normal = Some(self.normal.clone().unwrap() * Number::new(-1.));
     }
 
-    pub(crate) fn does_triangle_contain_point(&self, p : &Point) -> bool {
+    pub(crate) fn does_triangle_contain_point(&self, p : &Point, strict : bool) -> bool {
         // http://blackpawn.com/texts/pointinpoly/
 
         let v0 = self.get_ref(2) - self.get_ref(0);
@@ -135,9 +147,17 @@ impl Triangle {
         //println!("v = {0}", v);
 
         // Check if point is in triangle
-        return (u.is_it_positive() || u.is_it_zero()) &&
-            (v.is_it_positive() || v.is_it_zero()) &&
-            (u + v <= Number::new(1.))
+        if strict {
+            return (u.is_it_positive() || u.is_it_zero()) &&
+                (v.is_it_positive() || v.is_it_zero()) &&
+                (u + v < Number::new(1.))
+        } else {
+            return (u.is_it_positive() || u.is_it_zero()) &&
+                (v.is_it_positive() || v.is_it_zero()) &&
+                (u + v <= Number::new(1.))
+        }
+
+
     }
 
     /// This method checks the triangle and returns:
@@ -167,6 +187,29 @@ impl Triangle {
     }
 }
 
+impl To2D for Triangle {
+    fn swap_yz(&mut self) {
+        self.normal.iter_mut().next().unwrap().swap_yz();
+        for p in self.points.iter_mut() {
+            p.swap_yz()
+        }
+    }
+
+    fn swap_xy(&mut self) {
+        self.normal.iter_mut().next().unwrap().swap_xy();
+        for p in self.points.iter_mut() {
+            p.swap_xy()
+        }
+    }
+
+    fn swap_xz(&mut self) {
+        self.normal.iter_mut().next().unwrap().swap_xz();
+        for p in self.points.iter_mut() {
+            p.swap_xz()
+        }
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -181,7 +224,7 @@ mod tests {
         let tr1 = Triangle::new(vec![p1, p2, p3]);
 
         let p = Point::new_from_f64(1. / 2., 1. / 2., 0.);
-        assert!(tr1.does_triangle_contain_point(&p));
+        assert!(tr1.does_triangle_contain_point(&p, false));
     }
 
     #[test]
@@ -192,7 +235,7 @@ mod tests {
         let tr1 = Triangle::new(vec![p1, p2, p3]);
 
         let p = Point::new_from_f64(1. / 2., 3. , 0.);
-        assert!(!tr1.does_triangle_contain_point(&p));
+        assert!(!tr1.does_triangle_contain_point(&p, false));
     }
 
     #[test]
@@ -207,7 +250,7 @@ mod tests {
         let p3 = Point::new_from_f64(1., 1., 0.);
         let tr2 = Triangle::new(vec![p1,p2,p3]);
 
-        assert!(tr2.does_triangle_contain_point(tr1.get_ref(1)));
+        assert!(tr2.does_triangle_contain_point(tr1.get_ref(1), false));
     }
 }
 

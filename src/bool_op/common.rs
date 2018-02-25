@@ -1,7 +1,7 @@
 use primitives::*;
 use intersect::mesh_x_mesh;
 use intersect::triangle_x_triangle::InfoTxT;
-use triangulation::incremental_triangulation::triangulate;
+use triangulation::*;
 
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -136,7 +136,7 @@ fn first_classification(t: &Triangle, tdesc: &mut TDesc) -> Marker {
 
 fn second_classification(t: &Triangle, tdesc: &mut TDesc) -> Marker {
     for polygon in tdesc.get_polygons_ref() {
-        let pn = polygon.normal.clone();
+        let pn = polygon.get_normal_ref().clone();
         let ps = polygon.get_points_ref();
         let ps_len = ps.len();
         let tn = t.get_normal();
@@ -191,14 +191,12 @@ fn triangulate_all(it_to_desc: HashMap<usize, TDesc>) -> HashMap<Triangle, Marke
             points.push(p);
         }
 
-        let ts = triangulate(points, tdesc.plane.clone());
+        let ts = triangulate3d(points, tdesc.plane.clone(), TriangulationAlgorithm::Incremental);
 
         for mut t in ts {
             let m1 = first_classification(&t, &mut tdesc);
             let m2 = second_classification(&t, &mut tdesc);
             let res_marker = if m2.is_it_planar() {
-                // TODO исправить баг с параллельным продолжением
-                // TODO исправить баг касание ребром и отсутствие некоторых двойных нормалей
                 m2
             } else {
                 m1
@@ -295,7 +293,11 @@ impl TDesc {
 fn add_triangles(ts_and_ms: HashMap<Triangle, Marker>, mesh: &mut Mesh, it_to_marker: &mut HashMap<usize, Marker>) {
     for (t, m) in ts_and_ms.into_iter() {
         let it = mesh.add_triangle(t);
-        it_to_marker.insert(it, m);
+        if it.is_ok() {
+            it_to_marker.insert(it.unwrap(), m);
+        } else {
+            warn!("{0}", it.err().unwrap());
+        }
     }
 }
 
@@ -318,7 +320,6 @@ fn dfs(mesh: &mut Mesh, it_to_marker: &mut HashMap<usize, Marker>) {
             }
         }
     }
-
 }
 
 
@@ -332,6 +333,12 @@ impl BoolOpPerformer {
     /// * `mesh_a_ref` - A reference to the second mesh.
     pub fn new(mesh_a_ref: &Mesh, mesh_b_ref: &Mesh) -> Result<BoolOpPerformer, &'static str> {
         let start = PreciseTime::now();
+
+        if !mesh_a_ref.geometry_check()  {
+            return Err("Geometry check failed for first mesh! Each triangle must have three adjacent triangles!");
+        } else if !mesh_b_ref.geometry_check() {
+            return Err("Geometry check failed for second mesh! Each triangle must have three adjacent triangles!");
+        }
 
         if log_enabled!(LogLevel::Info) {
             info!("----------------------------------------");
@@ -411,10 +418,10 @@ impl BoolOpPerformer {
                 }
 
                 InfoTxT::CoplanarIntersecting => {
-                    let mut polygon = res.get_polygon();
+                    let mut polygon : Polygon = res.get_polygon();
                     mut_ref_tdec_b.add_polygon(polygon.clone());
 
-                    polygon.normal = nb;
+                    polygon.set_normal(nb);
                     mut_ref_tdec_a.add_polygon(polygon);
                 }
 
@@ -504,14 +511,14 @@ impl BoolOpPerformer {
 
         for (it, m) in self.a_it_to_marker.iter() {
             if (*m == Marker::Outer) || (*m == Marker::PlanarPlus) {
-                res_mesh.add_triangle(self.mesh_a.get_triangle(*it));
+                res_mesh.add_triangle(self.mesh_a.get_triangle(*it)).ok();
             }
         }
 
 
         for (it, m) in self.b_it_to_marker.iter() {
             if *m == Marker::Outer {
-                res_mesh.add_triangle(self.mesh_b.get_triangle(*it));
+                res_mesh.add_triangle(self.mesh_b.get_triangle(*it)).ok();
             }
         }
 
@@ -535,13 +542,13 @@ impl BoolOpPerformer {
         let mut res_mesh = Mesh::new();
         for (it, m) in self.a_it_to_marker.iter() {
             if (*m == Marker::Inner) || (*m == Marker::PlanarPlus) {
-                res_mesh.add_triangle(self.mesh_a.get_triangle(*it));
+                res_mesh.add_triangle(self.mesh_a.get_triangle(*it)).ok();
             }
         }
 
         for (it, m) in self.b_it_to_marker.iter() {
             if *m == Marker::Inner {
-                res_mesh.add_triangle(self.mesh_b.get_triangle(*it));
+                res_mesh.add_triangle(self.mesh_b.get_triangle(*it)).ok();
             }
         }
 
@@ -564,13 +571,13 @@ impl BoolOpPerformer {
         let mut res_mesh = Mesh::new();
         for (it, m) in self.a_it_to_marker.iter() {
             if (*m == Marker::Outer) || (*m == Marker::PlanarMinus) {
-                res_mesh.add_triangle(self.mesh_a.get_triangle(*it));
+                res_mesh.add_triangle(self.mesh_a.get_triangle(*it)).ok();
             }
         }
 
         for (it, m) in self.b_it_to_marker.iter() {
             if *m == Marker::Inner {
-                res_mesh.add_triangle(self.mesh_b.get_reversed_triangle(*it));
+                res_mesh.add_triangle(self.mesh_b.get_reversed_triangle(*it)).ok();
             }
         }
 
@@ -581,6 +588,10 @@ impl BoolOpPerformer {
 
         return res_mesh;
     }
+
+    pub(crate) fn get_intermidiate_meshes(self) -> (Mesh, Mesh) {
+        return (self.mesh_a, self.mesh_b);
+    }
 }
 
 #[cfg(test)]
@@ -589,7 +600,10 @@ mod tests {
     use bool_op::BoolOpPerformer;
     use std::fs::File;
     use env_logger::init  as env_logger_init;
+    use std::path::Path;
+    use std::fs;
 
+    #[derive(Clone)]
     enum BoolOpType {
         Union,
         Intersection,
@@ -597,13 +611,42 @@ mod tests {
     }
 
     macro_rules! pattern_str {
-        () =>  ("res_of_tests/simple_bool_op/{0}/{1}")
+        (full) =>  ("res_of_tests/simple_bool_op/{0}/{1}.stl");
+        (dir) =>  ("res_of_tests/simple_bool_op/{0}");
+        (rfull) =>  ("res_of_tests/simple_bool_op/{0}/{1}/{2}.stl");
+        (rdir) =>  ("res_of_tests/simple_bool_op/{0}/{1}");
     }
 
-    fn bool_op_test(input_file_name_a: &str, input_file_name_b: &str,
-                    test_index: usize,
-                    operations: Vec<BoolOpType>,
-                    geometry_check: bool
+    fn perform_bool_ops<'a>(
+        ma: &Mesh, mb: &Mesh,
+        operations: Vec<BoolOpType>,
+    ) -> Vec<(&'a str, Mesh)> {
+        let bool_op_performer : BoolOpPerformer =
+            BoolOpPerformer::new(&ma, &mb).expect("The error was raised!");
+
+        let mut results : Vec<(&'a str, Mesh)> = Vec::new();
+
+        for op_type in operations {
+            let (s, m) = match op_type {
+                BoolOpType::Union => ("union", bool_op_performer.union()),
+                BoolOpType::Difference => ("diference", bool_op_performer.difference()),
+                BoolOpType::Intersection => ("intersection", bool_op_performer.intersection())
+            };
+
+            results.push((s, m));
+        }
+
+        let (mesh_a, mesh_b) = bool_op_performer.get_intermidiate_meshes();
+        results.push(("intermidiate_a", mesh_a));
+        results.push(("intermidiate_b", mesh_b));
+        return results;
+    }
+
+    fn bool_op_test(
+        input_file_name_a: &str, input_file_name_b: &str,
+        test_index: usize,
+        operations: Vec<BoolOpType>,
+        do_geom_check_for_results: bool
     ) {
         env_logger_init().unwrap_or_else(|_| ->  () {});
 
@@ -612,62 +655,114 @@ mod tests {
         let ma : Mesh = Mesh::read_stl(& mut fa).unwrap();
         let mb : Mesh = Mesh::read_stl(& mut fb).unwrap();
 
-        if geometry_check && (!ma.geometry_check() || !mb.geometry_check()) {
-            panic!("Geometry check failed!")
+        let results : Vec<(&str, Mesh)> = perform_bool_ops(&ma, &mb, operations);
+        let dir_path = format!(pattern_str!(dir), test_index);
+
+        if Path::new(&dir_path).exists() {
+            fs::remove_dir_all(&dir_path).ok();
         }
+        fs::create_dir_all(&dir_path).ok();
 
-        let inter_res_a_file_name = format!(pattern_str!(), test_index, "inter_a.stl");
-        let bool_op_performer : BoolOpPerformer = BoolOpPerformer::new(&ma, &mb).expect("The error was raised!");
-        let mut ia_f = File::create(inter_res_a_file_name).unwrap();
-        match bool_op_performer.mesh_a.write_stl(&mut ia_f) {
-            Ok(_) => (),
-            Err(_) => panic!("Can not write into file!")
-        };
+        let mut errors = 0;
 
-        let inter_res_b_file_name = format!(pattern_str!(), test_index, "inter_b.stl");
-        let mut ib_f = File::create(inter_res_b_file_name).unwrap();
-        match bool_op_performer.mesh_b.write_stl(&mut ib_f) {
-            Ok(_) => (),
-            Err(_) => panic!("Can not write into file!")
-        };
-
-        for op_type in operations {
-            let mut m = match op_type {
-                BoolOpType::Union => bool_op_performer.union(),
-                BoolOpType::Difference => bool_op_performer.difference(),
-                BoolOpType::Intersection => bool_op_performer.intersection()
-            };
-
-            let output_file_name = match op_type {
-                BoolOpType::Union => format!(pattern_str!(), test_index, "union_res.stl"),
-                BoolOpType::Difference => format!(pattern_str!(), test_index, "difference_res.stl"),
-                BoolOpType::Intersection => format!(pattern_str!(), test_index, "intersection_res.stl")
-            };
-
+        for (s, m) in results {
+            let output_file_name = format!(pattern_str!(full), test_index, s);
             let mut f = File::create(output_file_name).unwrap();
             match m.write_stl(&mut f) {
                 Ok(_) => (),
                 Err(_) => panic!("Can not write into file!")
             };
 
-            if geometry_check && !m.geometry_check() {
-                panic!("Geometry check failed!")
+
+
+            if do_geom_check_for_results && !m.geometry_check() {
+                errors += 1;
+            }
+        }
+
+        if errors != 0 {
+            panic!("Geometry check failed!");
+        }
+
+    }
+
+    fn bool_op_test_with_rotation(
+        input_file_name_a: &str, input_file_name_b: &str,
+        test_index: usize,
+        operations: Vec<BoolOpType>,
+        do_geom_check_for_results: bool
+    ) {
+        env_logger_init().unwrap_or_else(|_| ->  () {});
+
+        let mut fa = File::open(input_file_name_a).unwrap();
+        let mut fb = File::open(input_file_name_b).unwrap();
+        let ma : Mesh = Mesh::read_stl(& mut fa).unwrap();
+        let mb : Mesh = Mesh::read_stl(& mut fb).unwrap();
+
+        let main_dir_path = format!(pattern_str!(dir), test_index);
+        if Path::new(&main_dir_path).exists() {
+            fs::remove_dir_all(&main_dir_path).ok();
+        }
+
+        let step : usize = 10;
+
+        for i in 0..10 {
+            info!("Mesh b was turned by {0} degrees", i*&step);
+
+            let mut cur_mb = mb.clone();
+            cur_mb.rotate_x(Number::new((&step*i) as f64));
+            let dir_path = format!(pattern_str!(rdir), test_index, i*&step);
+            fs::create_dir_all(&dir_path).ok();
+
+            let file_name = format!(pattern_str!(rfull), test_index, i*&step, "rotated");
+            let mut f = File::create(file_name).unwrap();
+            match cur_mb.write_stl(&mut f) {
+                Ok(_) => (),
+                Err(_) => panic!("Can not write into file!")
+            };
+
+
+            let mut results : Vec<(&str, Mesh)> =
+                perform_bool_ops(&ma, &cur_mb, operations.clone());
+
+            let mut errors = 0;
+
+            for (s, m) in results {
+                let output_file_name = format!(pattern_str!(rfull), test_index, i*&step, s);
+                let mut f = File::create(output_file_name).unwrap();
+                match m.write_stl(&mut f) {
+                    Ok(_) => (),
+                    Err(_) => panic!("Can not write into file!")
+                };
+
+                if do_geom_check_for_results && !m.geometry_check() {
+                    errors += 1;
+                }
+            }
+
+            if errors != 0 {
+                panic!("Geometry check failed!");
             }
         }
     }
 
+
+
+    /*
     #[test]
     fn test0() {
         bool_op_test("input_for_tests/plane2.stl",
                      "input_for_tests/plane1.stl",
-                     0, vec![BoolOpType::Union], false);
+                     0, vec![BoolOpType::Union]);
     }
+    */
 
     #[test]
     fn test1() {
         bool_op_test("input_for_tests/cube_in_origin.stl",
                    "input_for_tests/scaled_shifted_cube.stl",
-                   1, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection], true);
+                   1, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection],
+                   true);
     }
 
     #[test]
@@ -675,29 +770,35 @@ mod tests {
         //cargo test first_union_test -- --nocapture
         bool_op_test("input_for_tests/cube_in_origin.stl",
                    "input_for_tests/long_scaled_shifted_cube.stl",
-                   2, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection], true);
+                   2, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection],
+                   true);
     }
 
     #[test]
     fn test3() {
         bool_op_test("input_for_tests/sphere_in_origin.stl",
                      "input_for_tests/long_scaled_shifted_cube.stl",
-                     3, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection], true);
+                     3, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection],
+                     true);
     }
 
     #[test]
     fn test4() {
         bool_op_test("input_for_tests/sphere_in_origin.stl",
                    "input_for_tests/cone_in_origin.stl",
-                   4, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection], true);
+                   4, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection],
+                   true);
     }
 
+    /*
     #[test]
     fn test5() {
         bool_op_test("input_for_tests/cube_in_origin.stl",
                      "input_for_tests/skew_cube_in_origin.stl",
-                     5, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection], true);
+                     5, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection],
+                     true);
     }
+
 
     #[ignore]
     #[test]
@@ -705,32 +806,104 @@ mod tests {
         bool_op_test("input_for_tests/skull.stl",
                      //"input_for_tests/sphere_in_origin.stl",
                      "input_for_tests/separating_plane.stl",
-                     6, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection], false);
+                     6, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection]);
     }
+
 
 
     #[test]
     fn test7() {
         // результат операции - поверхность с самопересечением.
-
         bool_op_test("input_for_tests/cube_in_origin.stl",
                      "input_for_tests/skew_cube_in_origin2.stl",
-                     7, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection], false);
+                     7, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection]);
     }
+
 
     #[test]
     fn test8() {
         // результат операции - поверхность с самопересечением.
         bool_op_test("input_for_tests/cube_in_origin.stl",
                      "input_for_tests/moved_cube.stl",
-                     8, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection], false);
+                     8, vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection]);
     }
+    */
 
     #[test]
     fn test9() {
         bool_op_test("input_for_tests/cube_in_origin.stl",
                      "input_for_tests/moved_cube_not_skewed.stl",
-                     9  , vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection], true);
+                     9  , vec![BoolOpType::Union, BoolOpType::Difference, BoolOpType::Intersection],
+                     true);
     }
 
+    #[ignore]
+    #[test]
+    fn test_rotation_cylinder() {
+        bool_op_test_with_rotation(
+            "input_for_tests/cylinder_8_a.stl",
+             "input_for_tests/cylinder_8_c.stl",
+             //"input_for_tests/cylinder_8_b.stl",
+            10  , vec![BoolOpType::Intersection, BoolOpType::Union, BoolOpType::Difference],
+            true
+        );
+    }
+
+    #[ignore]
+    #[test]
+    fn test_rotation_tor() {
+        // TODO исправить: баг триангуляция Делонэ не единственна при наличии четырех точек на окружности
+
+        bool_op_test_with_rotation(
+            "input_for_tests/tor.stl",
+            "input_for_tests/separating_plane.stl",
+            //"input_for_tests/cylinder_8_b.stl",
+            11  , vec![BoolOpType::Intersection, BoolOpType::Union, BoolOpType::Difference],
+            true
+        );
+    }
+
+    #[ignore]
+    #[test]
+    fn test_of_cylinders_imposition() {
+        // TODO исправить: баг классификация при плоскостных наложениях
+
+        bool_op_test(
+            "input_for_tests/cylinder_8_a.stl",
+            "input_for_tests/cylinder_8_a_1.stl",
+            //"input_for_tests/cylinder_8_b.stl",
+            12  , vec![BoolOpType::Intersection, BoolOpType::Union, BoolOpType::Difference],
+            true
+        );
+    }
 }
+
+/*
+TODO:
+1. Если поверхность содержит самопересечения, то нужно возвращать ошибку. [1]
+    1.1. Так как geometry check будет выполняться при создании BoolOpPerformer-а, то его нужно убрать из тестов.
+    1.2. Убрать из unit-тестов все что противоречит данной концепции.
+2. Если результирующая поверхность содержит несколько компонент связности, то нужно возвращать список mesh-ей [2]
+    2.1. Нужно внутри BoolOpPerformer-а сделать метод для поиска компонент связности.
+         Это делается с помощью нерекурсивного обхода графа.
+    2.2. Написать тест с разбиением фигуры на три части.
+3. Нужно подготовить тест с вращающимися цилиндрами.
+    3.1. Создать в blender цилиндр с небольшим количеством полигонов.
+    3.2. Написать метод выполняющий рациональное вращение с помощью ряда тейлора.
+    3.3. Написать тест, который запускает булевы операции для оригинального и повернутого цилиндра в цикле.
+    3.4. Нужно написать алгоритм, проверяющий точку на принадлежность внутренности поверхности.
+         Это делается с помощью пересечения луча с поверхностью. Если найдено четное кошличество точек,
+         то точка находится вне поверхности, иначе она находится внутри.
+         Пересекать луч с поверхностью нужно, используя AABT.
+         Луч - задется точкой и направляющим вектором. Нужно уметь пересекать луч с боксом.
+
+    3.5. Нужно написать алгоритм, который методом Монте-Карло проверяет корректность результата.
+    3.6. Во все тесты булевых операций нужно добавить проверка данным методом.
+4. Исправить статью 2, и отправить ее дяде Виталию.
+5. Подготовить план-содержание для записки дисертации.
+
+TODO important:
+1. Запретить касание ребром. Этот случай приводит к генерации поверхности с самопересечением и как следствие к поломке алгоритма.
+2. Придумать алгоритм, который будет вместо триангуляции будет делать разбиение треугольников по ребрам.
+
+*/

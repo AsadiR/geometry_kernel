@@ -21,6 +21,7 @@ pub(crate) use self::line::Line;
 pub(crate) use self::plane::Plane;
 pub(crate) use self::triangle::Triangle;
 pub(crate) use self::polygon::Polygon;
+pub(crate) use self::polygon::PolygonTreeNode;
 pub(crate) use self::mesh::Mesh;
 
 pub(crate) mod zero_trait;
@@ -28,6 +29,9 @@ pub(crate) use self::zero_trait::Zero;
 
 pub(crate) mod signed_trait;
 pub(crate) use self::signed_trait::Signed;
+
+pub(crate) mod to_2d_trait;
+pub(crate) use self::to_2d_trait::To2D;
 
 
 

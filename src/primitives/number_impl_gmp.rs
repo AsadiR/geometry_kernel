@@ -5,10 +5,12 @@ use gmp::mpz::Mpz;
 // use std::default::Default;
 use std::fmt;
 use std::hash::{Hash, Hasher};
+use num::pow;
 
 use primitives::signed_trait::Signed;
 use primitives::zero_trait::Zero;
 use std::cmp::{Ord, Ordering};
+use std::collections::HashMap;
 
 use primitives::number_trait::{NumberTrait, NumberT};
 
@@ -21,6 +23,7 @@ lazy_static! {
     // static ref LEAST_F32_VALUE : Number = Number::new(0.000001);
     static ref VALUE_10_6 : Mpz = Mpz::from_str_radix("100000", 10).unwrap();
     static ref VALUE_10 : Mpz = Mpz::from_str_radix("10", 10).unwrap();
+    static ref PI : Number = Number::new(3.14159265359f64);
 }
 
 impl fmt::Display for Number {
@@ -224,24 +227,29 @@ impl NumberTrait<Number> for Number {
 
         let mut numer = self.value.get_num().clone();
         let mut denom = self.value.get_den().clone();
-
+        //println!("num {0}", self);
         loop {
-            let opt_numer = numer.to_str_radix(10).parse::<f32>().ok();
-            let opt_denom = denom.to_str_radix(10).parse::<f32>().ok();
+            //let opt_numer = numer.to_str_radix(10).parse::<f32>().ok();
+            //let opt_denom = denom.to_str_radix(10).parse::<f32>().ok();
+            let cur_numer = numer.to_str_radix(10).parse::<f32>().ok().unwrap();
+            let cur_denom = denom.to_str_radix(10).parse::<f32>().ok().unwrap();
 
-            if opt_denom.is_none() || opt_numer.is_none() {
-                if opt_denom.is_none() && (&numer < &VALUE_10_6) {
+            //println!("num {:?}", opt_numer);
+            //println!("denom {:?}", opt_denom);
+
+            if cur_denom.is_infinite() || cur_numer.is_infinite() {
+                if cur_denom.is_infinite() && (&numer.abs() < &VALUE_10_6) {
                     return 0.;
                 }
 
-                if opt_numer.is_none() && (&denom < &VALUE_10_6) {
+                if cur_numer.is_infinite() && (&denom.abs() < &VALUE_10_6) {
                     panic!("ERROR: The value is too large: {0}", self.value);
                 }
 
                 numer = numer / VALUE_10.clone();
                 denom = denom / VALUE_10.clone();
             } else {
-                return opt_numer.unwrap() / opt_denom.unwrap();
+                return cur_numer / cur_denom;
             }
         }
         // panic!("Something goes wrong!");
@@ -266,5 +274,78 @@ impl NumberTrait<Number> for Number {
         v.set_d(x as f64);
         return Number::from_value(v);
     }
+
+    fn approx_cos(&self, n: usize) -> Number {
+        unsafe {
+            static mut OPT_HASH: Option<HashMap<Number, Number>> = None;
+            if OPT_HASH.is_none() {
+                OPT_HASH = Some(HashMap::new());
+            }
+
+            if OPT_HASH.iter().next().unwrap().contains_key(self) {
+                return OPT_HASH.iter().next().unwrap().get(self).unwrap().clone();
+            }
+
+            let mut res = ZERO_VALUE.clone();
+            let x = self * PI.clone() / Number::new(180f64);
+
+            for k in 0..n {
+                let l = 2 * k;
+                let factor = Number::new(pow(-1., k)) / factorial(Number::new(l as f64));
+                res = res + factor * x.pow(l.clone());
+            }
+
+            OPT_HASH.iter_mut().next().unwrap().insert(self.clone(), res.clone());
+            // println!("self: {0}, cos {1}", self, res.clone().convert_to_f32());
+            return res;
+        }
+    }
+
+    fn approx_sin(&self, n: usize) -> Number {
+        unsafe {
+            static mut OPT_HASH: Option<HashMap<Number, Number>> = None;
+            if OPT_HASH.is_none() {
+                OPT_HASH = Some(HashMap::new());
+            }
+
+            if OPT_HASH.iter().next().unwrap().contains_key(self) {
+                return OPT_HASH.iter().next().unwrap().get(self).unwrap().clone();
+            }
+
+            let mut res = ZERO_VALUE.clone();
+            let x = self * PI.clone() / Number::new(180f64);
+
+            for k in 0..n {
+                let l = 2 * k + 1;
+                let factor = Number::new(pow(-1., k)) / factorial(Number::new(l as f64));
+                res = res + factor * x.pow(l.clone());
+            }
+
+            OPT_HASH.iter_mut().next().unwrap().insert(self.clone(), res.clone());
+            // println!("self: {0}, sin {1}", self, res.clone().convert_to_f32());
+            return res;
+        }
+    }
+
+    fn pow(&self, k: usize) -> Number {
+        if k == 0 {
+            return Number::new(1.);
+        }
+
+        let mut res = self.clone();
+        for _ in 1..k {
+            res = res * self;
+        }
+
+        return res;
+    }
 }
 
+
+fn factorial(value: Number) -> Number {
+    if value == *ZERO_VALUE {
+        return Number::new(1f64);
+    } else {
+        return &value * factorial(&value - Number::new(1f64));
+    }
+}

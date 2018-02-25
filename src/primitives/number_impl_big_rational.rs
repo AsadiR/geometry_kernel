@@ -267,5 +267,19 @@ impl NumberTrait<Number> for Number {
         let res = BigRational::from_float(x).unwrap();
         return Number::from_value(res);
     }
+
+    fn approx_cos(&self, n: usize) -> Number {
+        // TODO
+        panic!("Not implemented!");
+    }
+
+    fn approx_sin(&self, n: usize) -> Number {
+        // TODO
+        panic!("Not implemented!");
+    }
+
+    fn pow(&self, k: usize) -> Number {
+        panic!("Not implemented!");
+    }
 }
 

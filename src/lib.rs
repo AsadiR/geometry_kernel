@@ -9,7 +9,7 @@ extern crate bidir_map;
 extern crate byteorder;
 extern crate test;
 extern crate rulinalg;
-
+extern crate rand;
 
 #[macro_use]
 extern crate lazy_static;

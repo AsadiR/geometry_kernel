@@ -1,7 +1,7 @@
 use primitives::point;
 use primitives::number::*;
 use std::mem::swap;
-
+use primitives::to_2d_trait::To2D;
 
 // use primitives::signed_trait::Signed;
 // use primitives::zero_trait::Zero;
@@ -109,18 +109,33 @@ impl Vector {
         &self.x*&self.x + &self.y*&self.y + &self.z*&self.z
     }
 
-    pub(crate) fn swap_yz(& mut self) {
+    pub(crate) fn get_signed_cos2(&self, other: &Vector) -> Number {
+        let minus_one = Number::new(-1.);
+        let zero = Number::new(0.);
+
+        let dp = self.dot_product(other);
+
+        let mut cos2 = dp.clone()*dp.clone()/self.length2()/other.length2();
+        if dp < zero {
+            cos2 = cos2 * &minus_one;
+        }
+        return cos2;
+    }
+
+}
+
+impl To2D for Vector {
+    fn swap_yz(& mut self) {
         swap(&mut self.y, &mut self.z);
     }
 
-    pub(crate) fn swap_xy(& mut self) {
+    fn swap_xy(& mut self) {
         swap(&mut self.x, &mut self.y);
     }
 
-    pub(crate) fn swap_xz(& mut self) {
+    fn swap_xz(& mut self) {
         swap(&mut self.x, &mut self.z);
     }
-
 }
 
 impl PartialEq for Vector {
