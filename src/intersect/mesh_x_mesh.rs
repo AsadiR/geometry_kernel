@@ -56,9 +56,8 @@ pub fn intersect(a : &Mesh, b : &Mesh, use_tree: usize) -> IntersectionResult {
 
         if res_txt.get_info().does_it_intersecting() {
             debug!("-----------");
-            debug!("{:?}", tr_a);
-            debug!("{:?}", tr_b);
-            debug!("info {:?}", res_txt.get_info());
+            debug!("{0} {1}", index_a, index_b);
+            debug!("txt_info {:?}", res_txt.get_info());
             res_mxm_list.push((index_a, index_b, res_txt));
         }
 

@@ -277,6 +277,52 @@ impl BinaryStlFile {
 
     }
 
+    pub(crate) fn get_indexes_of_triangles_by_two_points(&self, p1: &point::Point, p2: &point::Point) -> Option<(usize, usize)> {
+        let opt_ip1 = self.p_to_ip.get(p1);
+        let opt_ip2 = self.p_to_ip.get(p2);
+        if opt_ip1.is_none() || opt_ip2.is_none() {
+            return None;
+        }
+
+        let ip1 = opt_ip1.unwrap().clone();
+        let ip2 = opt_ip2.unwrap().clone();
+
+        let its1 = self.ip_to_its.get(&ip1).unwrap().clone();
+        let its2 = self.ip_to_its.get(&ip2).unwrap().clone();
+
+        let mut set1 : BTreeSet<usize> = BTreeSet::new();
+        let mut set2 : BTreeSet<usize> = BTreeSet::new();
+
+        set1.extend(its1);
+        set2.extend(its2);
+
+        let intersection = set1.intersection(&set2);
+
+        let mut res = Vec::new();
+        res.extend(intersection);
+
+        assert_eq!(res.len(), 2);
+
+        // нужно обеспечить, что треугольник у которого есть ребро с направлением, совпадающим с p1p2 будет первым!
+        let mut is_t0_plus = false;
+        let ips_for_t0: Vec<usize> = self.index_to_triangle.get(res[0]).unwrap().ips.clone();
+        for cur_index in 0..ips_for_t0.len() {
+            let next_index = (cur_index + 1) % ips_for_t0.len();
+            let (cur_ip, next_ip) = (ips_for_t0[cur_index], ips_for_t0[next_index]);
+            let (cur_p, next_p) = (&self.ip_to_p[&cur_ip], &self.ip_to_p[&next_ip]);
+            if cur_p == p1 && next_p == p2 {
+                is_t0_plus = true;
+                break;
+            }
+        }
+
+        if is_t0_plus {
+            return Some((*res[0], *res[1]));
+        } else {
+            return Some((*res[1], *res[0]));
+        }
+    }
+
     fn read_header<T: ReadBytesExt>(input: &mut T) -> Result<BinaryStlHeader> {
         let mut header = [0u8; 80];
 
@@ -487,6 +533,7 @@ impl BinaryStlFile {
             let sc_ts = self.find_segment_conjugated_triangles(*index);
 
             if sc_ts.len() != 3 {
+                debug!("cur_t {:?}", self.get_triangle(*index));
                 debug!("\t{:?}", sc_ts);
 
                 debug!("\tnum of nts is {0}", self.index_to_triangle[index].ins.len());
@@ -548,6 +595,53 @@ impl BinaryStlFile {
         self.index_to_triangle = index_to_triangle;
 
         info!("Rotation is finished in {0} seconds.\n", start.to(PreciseTime::now()));
+    }
+
+    pub(crate) fn find_xyz_ranges(&self) -> (Number, Number, Number, Number, Number, Number) {
+        let mut x_min;
+        let mut x_max;
+        let mut y_min;
+        let mut y_max;
+        let mut z_min;
+        let mut z_max;
+
+        {
+            let first_p = self.ip_to_p.get(&0).unwrap();
+            x_min = first_p.x.clone();
+            x_max = first_p.x.clone();
+            y_min = first_p.y.clone();
+            y_max = first_p.y.clone();
+            z_min = first_p.z.clone();
+            z_max = first_p.z.clone();
+        }
+
+        for p in self.ip_to_p.values() {
+            if p.x < x_min {
+                x_min = p.x.clone();
+            }
+
+            if p.x > x_max {
+                x_max = p.x.clone();
+            }
+
+            if p.y < y_min {
+                y_min = p.y.clone();
+            }
+
+            if p.y > y_max {
+                y_max = p.y.clone();
+            }
+
+            if p.z < z_min {
+                z_min = p.z.clone();
+            }
+
+            if p.z > z_max {
+                z_max = p.z.clone();
+            }
+        }
+
+        return (x_min, x_max, y_min, y_max, z_min, z_max);
     }
 }
 

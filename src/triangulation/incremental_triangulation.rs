@@ -2,7 +2,6 @@ use std::collections::BTreeSet;
 use primitives::*;
 use matrix::*;
 use intersect::line_x_line;
-use log::LogLevel;
 // use time::PreciseTime;
 
 pub fn triangulate2d(mut points : Vec<Point>, plane : Plane) -> Vec<Triangle> {

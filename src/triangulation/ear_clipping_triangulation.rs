@@ -1,11 +1,8 @@
 use std::collections::{HashMap, BTreeSet};
 use primitives::*;
 use primitives::point::EPointPosition;
-use matrix::*;
-use intersect::line_x_line;
-use log::LogLevel;
+// use log::LogLevel;
 // use time::PreciseTime;
-use std::fs::File;
 
 
 pub fn triangulate2d(polygon_tree : PolygonTreeNode) -> Vec<Triangle> {
@@ -46,7 +43,7 @@ fn update_convex_and_reflex_vs(
     cur_to_prev : &HashMap<usize, usize>,
     cur_to_next : &HashMap<usize, usize>
 ) {
-    let n = boundary_points.len();
+    // let n = boundary_points.len();
     let prev_index = cur_to_prev[cur_index];
     let next_index = cur_to_next[cur_index];
 
@@ -82,7 +79,7 @@ fn update_ears(
     //println!("point_to_update = {0}", boundary_points[cur_index]);
 
 
-    let n = boundary_points.len();
+    // let n = boundary_points.len();
     let prev_index_of_cv = cur_to_prev[cur_index];
     let next_index_of_cv = cur_to_next[cur_index];
 
@@ -159,7 +156,7 @@ fn update_convex_and_reflex_for_all(
     }
 }
 
-fn simple_triangulation(boundary: Polygon, mut holes: Vec<Polygon>) -> Vec<Triangle> {
+fn simple_triangulation(boundary: Polygon, holes: Vec<Polygon>) -> Vec<Triangle> {
     /*
     Обход против часовой стрелки.
     Для reflex вершины с индексом i: v_(i+1) лежит справа от вектора (v_(i-1), v_i),
@@ -175,7 +172,7 @@ fn simple_triangulation(boundary: Polygon, mut holes: Vec<Polygon>) -> Vec<Trian
     */
     //println!("boundary: {:?}", &boundary);
 
-    fn key(&(ref point_xmax, ref p) : &(Point, Polygon)) -> Number {
+    fn key(&(ref point_xmax, _) : &(Point, Polygon)) -> Number {
         return point_xmax.x.clone()
     }
 
@@ -407,8 +404,8 @@ fn simple_triangulation(boundary: Polygon, mut holes: Vec<Polygon>) -> Vec<Trian
 
         ears.remove(&ear_index);
         convex_vs.remove(&ear_index);
-        let mut prev_index = cur_to_prev[&ear_index];
-        let mut next_index = cur_to_next[&ear_index];
+        let prev_index = cur_to_prev[&ear_index];
+        let next_index = cur_to_next[&ear_index];
         let t = Triangle::new(vec![
             boundary_points[&prev_index].clone(),
             boundary_points[&ear_index].clone(),
@@ -442,7 +439,6 @@ mod tests {
     use std::fs::File;
     use primitives::*;
     use triangulation::*;
-    use triangulation::ear_clipping_triangulation::triangulate2d;
     // use env_logger::init  as env_logger_init;
 
     #[test]
@@ -458,7 +454,7 @@ mod tests {
         let p : Polygon = Polygon::new(vec![a, b, c, d, e, f, g], Vector::new_from_f64(0., 0., 1.));
         let p_tree : PolygonTreeNode = PolygonTreeNode::new(p);
 
-        let ts = triangulate2d(p_tree);
+        let ts = ear_clipping_triangulation::triangulate2d(p_tree);
 
         //info!("len: {} \n", ts.len());
         //info!("vec: {:?} \n", ts);
@@ -496,7 +492,7 @@ mod tests {
         let mut p_tree : PolygonTreeNode = PolygonTreeNode::new(outer);
         p_tree.add_children(vec![PolygonTreeNode::new(inner)]);
 
-        let ts = triangulate2d(p_tree);
+        let ts = ear_clipping_triangulation::triangulate2d(p_tree);
 
         //info!("len: {} \n", ts.len());
         //info!("vec: {:?} \n", ts);
@@ -537,7 +533,7 @@ mod tests {
         let mut p_tree : PolygonTreeNode = PolygonTreeNode::new(outer);
         p_tree.add_children(vec![PolygonTreeNode::new(inner)]);
 
-        let ts = triangulate2d(p_tree);
+        let ts = ear_clipping_triangulation::triangulate2d(p_tree);
 
         //info!("len: {} \n", ts.len());
         //info!("vec: {:?} \n", ts);
@@ -577,7 +573,7 @@ mod tests {
         let mut p_tree : PolygonTreeNode = PolygonTreeNode::new(outer);
         p_tree.add_children(vec![PolygonTreeNode::new(inner)]);
 
-        let ts = triangulate2d(p_tree);
+        let ts = ear_clipping_triangulation::triangulate2d(p_tree);
 
         assert_eq!(ts.len(), 11);
 
@@ -638,7 +634,7 @@ mod tests {
             PolygonTreeNode::new(pl13)
         ]);
 
-        let ts = triangulate2d(pn1);
+        let ts = ear_clipping_triangulation::triangulate2d(pn1);
         // println!("len: {} \n", ts.len());
         assert_eq!(ts.len(), 37);
 

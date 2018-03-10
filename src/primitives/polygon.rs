@@ -2,7 +2,7 @@ use intersect::point_wrapper::PointWrapper;
 use std::collections::{BTreeSet, HashMap};
 use primitives::*;
 use primitives::point::EPointPosition;
-use triangulation::triangulation3d::check_segments;
+// use triangulation::triangulation3d::check_segments;
 
 #[derive(Clone)]
 #[derive(Debug, Hash)]
@@ -21,6 +21,16 @@ impl Polygon {
 
     pub fn get_points(self) -> Vec<Point> {
         return self.points;
+    }
+
+    pub(crate) fn get_segments(&self) -> Vec<Segment> {
+        let mut res: Vec<Segment> = Vec::new();
+        for cur_i in 0..self.points.len() {
+            let next_i = (cur_i + 1)%self.points.len();
+            let s = Segment::new(self.points[cur_i].clone(), self.points[next_i].clone());
+            res.push(s);
+        }
+        return res;
     }
 
     pub fn get_points_ref(&self) -> &Vec<Point> {
@@ -55,7 +65,7 @@ impl Polygon {
 
         let mut num_of_intersections = 0;
 
-        let mut n = self.points.len();
+        let n = self.points.len();
         for cur_index in 0..n {
             let next_index : usize = (cur_index+1)%n;
             let (cur_point, next_point) = (&self.points[cur_index], &self.points[next_index]);
@@ -147,10 +157,12 @@ impl PolygonTreeNode {
         }
     }
 
+    #[allow(dead_code)]
     pub fn set_polygon(&mut self, polygon: Polygon) {
         self.polygon = polygon;
     }
 
+    #[allow(dead_code)]
     pub fn get_children_ref(&self) -> &Vec<PolygonTreeNode> {
         return &self.children;
     }
@@ -169,6 +181,7 @@ impl PolygonTreeNode {
         return self.children;
     }
 
+    #[allow(dead_code)]
     pub fn map(&mut self, f: &Fn(&mut Point)) {
         for p in self.polygon.points.iter_mut() {
             f(p);
@@ -381,7 +394,7 @@ impl TriangleContainer {
 
 
     fn add(&mut self, new_s: Segment, is_it_boundary: bool) {
-        for (index, s) in self.segments.iter().enumerate() {
+        for s in self.segments.iter() {
             if s == &new_s {
                 return;
             }
@@ -546,9 +559,7 @@ mod tests {
     use std::fs::File;
     use primitives::*;
     use triangulation::*;
-    use triangulation::ear_clipping_triangulation::triangulate2d;
     // use env_logger::init  as env_logger_init;
-    use std::collections::BTreeSet;
 
     #[test]
     fn loop_builder_test1() {
@@ -585,7 +596,7 @@ mod tests {
         ];
 
 
-        let mut ts : Vec<Triangle> = triangulate_ptree3d(t, ss);
+        let ts : Vec<Triangle> = triangulate_ptree3d(t, ss);
         assert_eq!(ts.len(), 16);
 
         let mut mesh = Mesh::new();

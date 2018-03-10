@@ -81,10 +81,10 @@ pub fn intersect(tr1 : &Triangle, tr2 : &Triangle) -> ResTxT {
         if polygon.get_points_ref().len() == 0 {
             return ResTxT::new(None, None, None, InfoTxT::CoplanarNotIntersecting);
         } else if polygon.get_points_ref().len() == 1 {
-            let (mut points, normal) = polygon.get_points_and_normal();
+            let (mut points, _) = polygon.get_points_and_normal();
             return ResTxT::new(Some(points.remove(0)), None, None, InfoTxT::IntersectingInAPoint);
         } else if polygon.get_points_ref().len() == 2 {
-            let (mut points, normal) = polygon.get_points_and_normal();
+            let (mut points, _) = polygon.get_points_and_normal();
             let os = Some(Segment::new(points.remove(0), points.remove(0)));
             return ResTxT::new(None, os, None, InfoTxT::Intersecting);
         }  else {

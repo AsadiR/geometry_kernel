@@ -268,17 +268,18 @@ impl NumberTrait<Number> for Number {
         return Number::from_value(res);
     }
 
-    fn approx_cos(&self, n: usize) -> Number {
+    fn approx_cos(&self, _: usize) -> Number {
         // TODO
         panic!("Not implemented!");
     }
 
-    fn approx_sin(&self, n: usize) -> Number {
+    fn approx_sin(&self, _: usize) -> Number {
         // TODO
         panic!("Not implemented!");
     }
 
-    fn pow(&self, k: usize) -> Number {
+
+    fn pow(&self, _: usize) -> Number {
         panic!("Not implemented!");
     }
 }

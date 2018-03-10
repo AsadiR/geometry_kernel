@@ -1,5 +1,6 @@
 #![crate_name = "geometry_kernel"]
 
+#![allow(dead_code)]
 
 extern crate core;
 extern crate time;

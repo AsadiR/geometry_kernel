@@ -1,6 +1,4 @@
-use std::collections::BTreeSet;
 use primitives::*;
-use intersect::line_x_line;
 use triangulation::incremental_triangulation;
 use triangulation::ear_clipping_triangulation;
 
@@ -8,8 +6,7 @@ use log::LogLevel;
 // use time::PreciseTime;
 
 pub enum TriangulationAlgorithm {
-    Incremental,
-    EarClipping
+    Incremental
 }
 
 pub fn triangulate_ptree3d(mut t: Triangle, mut ss: Vec<Segment>) -> Vec<Triangle> {
@@ -18,7 +15,7 @@ pub fn triangulate_ptree3d(mut t: Triangle, mut ss: Vec<Segment>) -> Vec<Triangl
 
     check_segments(&plane, &ss);
 
-    map_segments_to_2d(&mut ss, &normal_type, &mut plane);
+    map_segments_to_2d(&mut ss, &normal_type);
     map_to_2d(&mut plane, &normal_type);
     map_to_2d(&mut t, &normal_type);
 
@@ -111,7 +108,7 @@ pub fn triangulate3d(mut points : Vec<Point>, mut plane: Plane, alg: Triangulati
 
     let normal_type : NormalType = classify_normal(plane.get_ref_normal());
 
-    map_points_to_2d(&mut points, &normal_type, &mut plane);
+    map_points_to_2d(&mut points, &normal_type);
     map_to_2d(&mut plane, &normal_type);
 
     let iv = Vector::new_from_f64(1., 0., 0.);
@@ -127,7 +124,7 @@ pub fn triangulate3d(mut points : Vec<Point>, mut plane: Plane, alg: Triangulati
 
     let mapped_ts : Vec<Triangle> = match &alg {
         &TriangulationAlgorithm::Incremental => incremental_triangulation::triangulate2d(points, plane),
-        _ => panic!("Wrong triangulation algorithm!")
+        // _ => panic!("Wrong triangulation algorithm!")
     };
 
     return unmap_ts(orientation, normal_type, mapped_ts);
@@ -228,7 +225,6 @@ fn map_to_2d<T: To2D>(
 fn map_segments_to_2d(
     segments: &mut Vec<Segment>,
     nt : &NormalType,
-    plane : &mut Plane
 ) {
     for s in segments.iter_mut() {
         map_to_2d(&mut s.org, nt);
@@ -239,7 +235,6 @@ fn map_segments_to_2d(
 fn map_points_to_2d(
     points : &mut Vec<Point>,
     nt : &NormalType,
-    plane : &mut Plane
 ) {
     for p in points.iter_mut() {
         map_to_2d(p, nt);
