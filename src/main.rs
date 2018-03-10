@@ -12,8 +12,8 @@ fn main() {
     let mut f_b = File::open("input_for_tests/long_scaled_shifted_cube.stl").unwrap();
     let mesh_b = Mesh::read_stl(&mut f_b).unwrap();
 
-    let performer = BoolOpResult::new(&mesh_a, &mesh_b).expect("The error was raised in a constructor of <BoolOpPerformer>!");
-    let union_res = performer.union();
+    let result = BoolOpResult::new(&mesh_a, &mesh_b).expect("The error was raised in a constructor of <BoolOpPerformer>!");
+    let union_res = result.union();
 
     let mut f_res= File::create("res_of_tests/robust_bool_op/main/union_res.stl").unwrap();
     match union_res.write_stl(&mut f_res) {

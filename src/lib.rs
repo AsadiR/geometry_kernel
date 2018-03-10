@@ -32,7 +32,7 @@ mod triangulation;
 /// ```
 /// extern crate geometry_kernel;
 /// use geometry_kernel::primitives::mesh::Mesh;
-/// use geometry_kernel::bool_op::BoolOpPerformer;
+/// use geometry_kernel::bool_op::BoolOpResult;
 /// use std::fs::File;
 ///
 /// fn main() {
@@ -42,11 +42,11 @@ mod triangulation;
 ///   let mut f_b = File::open("input_for_tests/long_scaled_shifted_cube.stl").unwrap();
 ///   let mesh_b = Mesh::read_stl(&mut f_b).unwrap();
 ///
-///   let performer = BoolOpPerformer::new(&mesh_a, &mesh_b)
+///   let result = BoolOpResult::new(&mesh_a, &mesh_b)
 ///     .expect("The error was raised in a constructor of <BoolOpPerformer>!");
-///   let union_res = performer.union();
+///   let union_res = result.union();
 ///
-///   let mut f_res= File::create("res_of_tests/simple_bool_op/main/union_res.stl").unwrap();
+///   let mut f_res= File::create("res_of_tests/robust_bool_op/main/union_res.stl").unwrap();
 ///   match union_res.write_stl(&mut f_res) {
 ///     Ok(_) => (),
 ///     Err(_) => panic!()
