@@ -69,6 +69,8 @@ impl Curve {
         };
     }
 
+
+    // алгоритм работает корректно только если кривые из сегментов можно построить единственным образом!!!
     pub fn new_curves(
         it_to_ss: HashMap<usize, Vec<Segment>>, mesh_a: &Mesh, mesh_b: &Mesh
     ) -> Vec<Curve> {
@@ -132,6 +134,7 @@ impl Curve {
             }
         }
 
+        assert_ne!(res.len(), 0);
         return res;
     }
 
@@ -379,7 +382,9 @@ impl Blocks {
     pub fn new(
         it_to_ss_for_mesh_a: HashMap<usize, Vec<Segment>>,
         mesh_a: &Mesh,
-        mesh_b: &Mesh
+        mesh_b: &Mesh,
+        // planar_it_for_a: BTreeSet<usize>,
+        // planar_it_for_b: BTreeSet<usize>
     ) -> Blocks {
         /*
 
@@ -398,6 +403,7 @@ impl Blocks {
         if log_enabled!(LogLevel::Info) {
             Blocks::write_mesh(mesh_a.clone(), "retr_a.stl");
             Blocks::write_mesh(mesh_b.clone(), "retr_b.stl");
+
             assert!(mesh_a.geometry_check());
             assert!(mesh_b.geometry_check());
         }
@@ -431,8 +437,10 @@ impl Blocks {
             }
         }
 
-        let (difs_ab, difs_ba) =
-            Blocks::distinguish_difs(blocks_dif, &sub_surfaces, mesh_a, mesh_b, block_union);
+        let (difs_ab, difs_ba) = Blocks::distinguish_difs(
+            blocks_dif, &sub_surfaces,
+            mesh_a, mesh_b, block_union,
+        );
 
         if log_enabled!(LogLevel::Debug) {
             for (i, mesh) in difs_ab.iter().enumerate() {
@@ -627,9 +635,22 @@ impl Blocks {
             let outer_part = block.intersection(&block_union);
             let index_of_ss = outer_part.into_iter().next().unwrap();
             if sub_surfaces[*index_of_ss].from_what_mesh_is_it == EMesh::MeshA {
-                difs_ab.push(Blocks::get_mesh_from_block(sub_surfaces, &block, mesh_a, mesh_b, false, true));
+                let cur_mesh = Blocks::get_mesh_from_block(
+                    sub_surfaces,
+                    &block, mesh_a, mesh_b,
+                    false, true
+                );
+                let mut meshes = cur_mesh.split_into_connectivity_components();
+                meshes.retain(|m| m.geometry_check());
+                difs_ab.extend(meshes);
             } else {
-                difs_ba.push(Blocks::get_mesh_from_block(sub_surfaces, &block, mesh_a, mesh_b, true, false));
+                let cur_mesh = Blocks::get_mesh_from_block(
+                    sub_surfaces, &block, mesh_a, mesh_b,
+                    true, false
+                );
+                let mut meshes = cur_mesh.split_into_connectivity_components();
+                meshes.retain(|m| m.geometry_check());
+                difs_ba.extend(meshes);
             }
         }
 
@@ -671,13 +692,23 @@ impl BoolOpResult {
             return Err("Geometry check failed for second mesh! Each triangle must have three adjacent triangles!");
         }
 
+        let mut connectivity_components_for_a = mesh_a_ref.clone().split_into_connectivity_components();
+        if connectivity_components_for_a.len() != 1 {
+            return Err("The first mesh should have only one connectivity component!");
+        }
+
+        let mut connectivity_components_for_b = mesh_b_ref.clone().split_into_connectivity_components();
+        if connectivity_components_for_b.len() != 1 {
+            return Err("The second mesh should have only one connectivity component!");
+        }
+
         if log_enabled!(LogLevel::Info) {
             info!("----------------------------------------");
             info!("<BoolOpResult::new> is performing ...\n");
         }
 
-        let mesh_a : Mesh = mesh_a_ref.clone();
-        let mesh_b : Mesh = mesh_b_ref.clone();
+        let mesh_a : Mesh = connectivity_components_for_a.remove(0);
+        let mesh_b : Mesh = connectivity_components_for_b.remove(0);
 
         let m_x_m_start = PreciseTime::now();
         info!("Intersection of meshes is performing ...");
@@ -688,9 +719,6 @@ impl BoolOpResult {
         let mxm_res_lst = mxm_res.get_res_list();
         info!("There are {0} pairs of intersecting triangles.", mxm_res_lst.len());
 
-        let mut it_to_ss_for_mesh_a: HashMap<usize, Vec<Segment>> = HashMap::new();
-        let mut it_to_ss_for_mesh_b: HashMap<usize, Vec<Segment>> = HashMap::new();
-
         fn add_segment_to_map(it: &usize, s: Segment, t_to_ss: &mut HashMap<usize, Vec<Segment>>) {
             if t_to_ss.contains_key(it) {
                 // повторяться отрезки не могут, так как иначе присутствует самопересечение
@@ -699,6 +727,13 @@ impl BoolOpResult {
                 t_to_ss.insert(it.clone(), vec![s]);
             }
         }
+
+        let mut it_to_ss_for_mesh_a: HashMap<usize, Vec<Segment>> = HashMap::new();
+        let mut it_to_ss_for_mesh_b: HashMap<usize, Vec<Segment>> = HashMap::new();
+
+        let mut planar_it_for_a: BTreeSet<usize> = BTreeSet::new();
+        let mut planar_it_for_b: BTreeSet<usize> = BTreeSet::new();
+
 
         let mut it_to_ss_for_a_all: HashMap<usize, Vec<Segment>> = HashMap::new();
         let mut it_to_ss_for_b_all: HashMap<usize, Vec<Segment>> = HashMap::new();
@@ -714,6 +749,9 @@ impl BoolOpResult {
                 }
 
                 InfoTxT::CoplanarIntersecting => {
+                    planar_it_for_a.insert(index_a.clone());
+                    planar_it_for_b.insert(index_b.clone());
+
                     let polygon: Polygon = res.get_polygon();
                     for s in polygon.get_segments() {
                         add_segment_to_map(&index_a, s.clone(), &mut it_to_ss_for_a_all);
@@ -726,17 +764,32 @@ impl BoolOpResult {
             }
         }
 
+        it_to_ss_for_mesh_a.retain(|i, _| !planar_it_for_a.contains(i));
+        it_to_ss_for_mesh_b.retain(|i, _| !planar_it_for_b.contains(i));
+
+        if it_to_ss_for_mesh_a.is_empty() && it_to_ss_for_mesh_b.is_empty() {
+            return Err("Meshes doesn't intersect each other!");
+        }
+
         let retr_start = PreciseTime::now();
         info!("Retriangulation is performing ...");
-        let re_triangulated_mesh_a = BoolOpResult::re_triangulate_mesh(it_to_ss_for_a_all.clone(), &mesh_a);
-        let re_triangulated_mesh_b = BoolOpResult::re_triangulate_mesh(it_to_ss_for_b_all.clone(), &mesh_b);
+
+        let re_triangulated_mesh_a = BoolOpResult::re_triangulate_mesh(
+            it_to_ss_for_a_all.clone(),
+            &mesh_a
+        );
+
+        let re_triangulated_mesh_b = BoolOpResult::re_triangulate_mesh(
+            it_to_ss_for_b_all.clone(),
+            &mesh_b
+        );
         info!("Retriangulation is finished in {0} seconds.", retr_start.to(PreciseTime::now()));
 
         let build_blocks_start = PreciseTime::now();
         info!("Building blocks ...");
         let blocks = Blocks::new(
             it_to_ss_for_mesh_a,
-            &re_triangulated_mesh_a, &re_triangulated_mesh_b
+            &re_triangulated_mesh_a, &re_triangulated_mesh_b,
         );
         info!("Blocks were built in {0} seconds.", build_blocks_start.to(PreciseTime::now()));
 
@@ -751,7 +804,10 @@ impl BoolOpResult {
         return Ok(bool_op_res);
     }
 
-    fn re_triangulate_mesh(it_to_ss: HashMap<usize, Vec<Segment>>, mesh: &Mesh) -> Mesh {
+    fn re_triangulate_mesh(
+        it_to_ss: HashMap<usize, Vec<Segment>>,
+        mesh: &Mesh
+    ) -> Mesh {
         let mut new_mesh = mesh.clone();
 
         for (it, ss) in  it_to_ss {
@@ -1043,4 +1099,49 @@ mod tests {
             true
         );
     }
+
+    #[test]
+    fn test_of_cube_union() {
+        bool_op_test(
+            "input_for_tests/cube1.stl",
+            "input_for_tests/cube2.stl",
+            9,
+            vec![BoolOpType::Union, BoolOpType::DifferenceAB, BoolOpType::DifferenceBA],
+            true
+        );
+    }
+
+    #[test]
+    fn test_diplom() {
+        bool_op_test(
+            // "input_for_tests/tor.stl",
+            //"input_for_tests/Leg.stl",
+            "input_for_tests/bone1_rot.stl",
+            "input_for_tests/bone1.stl",
+            10,
+            vec![BoolOpType::Intersection, BoolOpType::Union, BoolOpType::DifferenceAB, BoolOpType::DifferenceBA],
+            true
+        );
+    }
+
+    #[test]
+    fn test_of_inner_cube() {
+        bool_op_test(
+            "input_for_tests/cube1.stl",
+            "input_for_tests/cube3.stl",
+            11,
+            vec![BoolOpType::Union, BoolOpType::DifferenceAB, BoolOpType::DifferenceBA, BoolOpType::Intersection],
+            true
+        );
+    }
+
+
 }
+
+/*
+TODO
+
+Возвращать ошибку если тело не связное или не проходит geometry_check по определенному флагу
+Написать алгоритм выполняющий сборку пересекающихся кривых
+
+*/
