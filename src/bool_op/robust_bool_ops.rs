@@ -10,6 +10,9 @@ use std::result::Result;
 use std::mem::swap;
 
 use std::fs::File;
+use std::path::Path;
+use std::fs;
+
 
 
 pub struct BoolOpResult {
@@ -59,6 +62,14 @@ struct Curve {
     indexes_of_negative_sub_surfaces: BTreeSet<usize>
 }
 
+impl PartialEq for Curve {
+    fn eq(&self, rhs: &Curve) -> bool {
+        return self.get_a_its() == rhs.get_a_its() && self.get_b_its() == rhs.get_b_its();
+    }
+}
+
+impl Eq for Curve {}
+
 impl Curve {
     // WARN после ретриангуляции индексы поменялись!!!! их использовать нельзя!!!
     pub fn new(css: Vec<CurveSegment>) -> Curve {
@@ -67,6 +78,24 @@ impl Curve {
             indexes_of_positive_sub_surfaces: BTreeSet::new(),
             indexes_of_negative_sub_surfaces: BTreeSet::new()
         };
+    }
+
+    pub fn get_a_its(&self) -> BTreeSet<usize> {
+        let mut a_its: BTreeSet<usize> = BTreeSet::new();
+        for cs in self.css.iter() {
+            a_its.insert(cs.index_of_amt);
+            a_its.insert(cs.index_of_apt);
+        }
+        return a_its;
+    }
+
+    pub fn get_b_its(&self) -> BTreeSet<usize> {
+        let mut b_its: BTreeSet<usize> = BTreeSet::new();
+        for cs in self.css.iter() {
+            b_its.insert(cs.index_of_bmt);
+            b_its.insert(cs.index_of_bpt);
+        }
+        return b_its;
     }
 
 
@@ -138,6 +167,39 @@ impl Curve {
         return res;
     }
 
+    pub fn new_curves_from_polygons(
+        polygons: Vec<Polygon>,
+        mesh_a: &Mesh, mesh_b: &Mesh
+    ) -> Vec<Curve> {
+
+        let mut ss: Vec<Segment> = Vec::new();
+        fn find(ss: &Vec<Segment>, needed_s: &Segment) -> Option<usize> {
+            for (index, s) in ss.iter().enumerate() {
+                if s == needed_s {
+                    return Some(index);
+                }
+            }
+            return None;
+        }
+
+        for cur_p in polygons.iter() {
+            for s in cur_p.get_segments() {
+                let opt_index = find(&ss, &s);
+                if opt_index.is_none() {
+                    ss.push(s);
+                } else {
+                    ss.remove(opt_index.unwrap());
+                }
+            }
+        }
+
+        let mut adapter: HashMap<usize, Vec<Segment>> = HashMap::new();
+        adapter.insert(0, ss);
+
+        return Curve::new_curves(adapter, mesh_a, mesh_b);
+
+    }
+
     // проверяет являются ли треугольники смежными по отрезку, принадлежащему кривой.
     pub(crate) fn are_they_twins(&self, it1: &usize, it2: &usize, from_what_mesh_is_it: &EMesh) -> bool {
         for cs in self.css.iter() {
@@ -196,6 +258,8 @@ struct SubSurface {
     from_what_mesh_is_it: EMesh
 }
 
+
+
 impl SubSurface {
     pub fn new(from_what_mesh_is_it: EMesh) -> SubSurface {
         return SubSurface {
@@ -223,25 +287,26 @@ impl SubSurface {
         sub_surfaces: &mut Vec<SubSurface>,
         mesh_a: &Mesh, mesh_b: &Mesh
     ) {
-        // кривые пересечения, гарантированно не пересекаются между собой!
-        let mut it_to_ic_for_a: HashMap<usize, usize> = HashMap::new();
+        let mut it_to_ic_for_a: HashMap<usize, BTreeSet<usize>> = HashMap::new();
         let mut it_to_is_for_a: HashMap<usize, usize> = HashMap::new();
 
-        let mut it_to_ic_for_b: HashMap<usize, usize> = HashMap::new();
+        let mut it_to_ic_for_b: HashMap<usize, BTreeSet<usize>> = HashMap::new();
         let mut it_to_is_for_b: HashMap<usize, usize> = HashMap::new();
 
+        fn insert(it_to_ic: &mut HashMap<usize, BTreeSet<usize>>, it: &usize, ic: &usize) {
+            if !it_to_ic.contains_key(it) {
+                it_to_ic.insert(it.clone(), BTreeSet::new());
+            }
+            it_to_ic.get_mut(it).unwrap().insert(ic.clone());
+        }
 
         for (index, curve) in curves.iter().enumerate() {
             for cs in curve.css.iter() {
-                //assert!(!it_to_ic_for_a.contains_key(&cs.index_of_apt));
-                it_to_ic_for_a.insert(cs.index_of_apt, index);
-                //assert!(!it_to_ic_for_a.contains_key(&cs.index_of_amt));
-                it_to_ic_for_a.insert(cs.index_of_amt, index);
+                insert(&mut it_to_ic_for_a, &cs.index_of_apt, &index);
+                insert(&mut it_to_ic_for_a,&cs.index_of_amt, &index);
 
-                //assert!(!it_to_ic_for_b.contains_key(&cs.index_of_bpt));
-                it_to_ic_for_b.insert(cs.index_of_bpt, index);
-                //assert!(!it_to_ic_for_b.contains_key(&cs.index_of_bmt));
-                it_to_ic_for_b.insert(cs.index_of_bmt, index);
+                insert(&mut it_to_ic_for_b,&cs.index_of_bpt, &index);
+                insert(&mut it_to_ic_for_b,&cs.index_of_bmt, &index);
             }
         }
 
@@ -281,7 +346,7 @@ impl SubSurface {
     fn add_sub_surface(
         start_index: &usize,
         from_what_mesh_is_it: EMesh,
-        it_to_ic: &HashMap<usize, usize>,
+        it_to_ic: &HashMap<usize, BTreeSet<usize>>,
         it_to_is: &mut HashMap<usize,usize>,
         curves: &mut Vec<Curve>,
         sub_surfaces: &mut Vec<SubSurface>,
@@ -311,11 +376,21 @@ impl SubSurface {
             for int in ins {
 
                 // Текущий трегольник и его сосед являются граничными и индексы кривых этих треугольников совпадают.
-                if it_to_ic.contains_key(&int) && it_to_ic.contains_key(&cur_it) &&
-                   it_to_ic.get(&int).unwrap() == it_to_ic.get(&cur_it).unwrap()
+                if it_to_ic.contains_key(&int) && it_to_ic.contains_key(&cur_it)
+                   // it_to_ic.get(&int).unwrap() == it_to_ic.get(&cur_it).unwrap()
                 {
-                    let ic = it_to_ic.get(&int).unwrap();
-                    if curves[*ic].are_they_twins(&int, &cur_it, &sub_surface.from_what_mesh_is_it) {
+                    let indexes_of_curves = it_to_ic.get(&int).unwrap();
+                    assert!(indexes_of_curves.len() <= 2);
+
+                    let mut continue_flag = false;
+                    for ic in indexes_of_curves.iter() {
+                        if curves[*ic].are_they_twins(&int, &cur_it, &sub_surface.from_what_mesh_is_it) {
+                            continue_flag = true;
+                        }
+                    }
+
+                    if continue_flag {
+                        // println!("continue");
                         continue;
                     }
                 }
@@ -327,12 +402,12 @@ impl SubSurface {
 
                 // Сосед является граничным, а текущий нет. При этом они оба не размеченные.
                 if it_to_ic.contains_key(&int) {
-                    sub_surface.update_curves_and_subsurface(int.clone(), it_to_ic[&int], is.clone(), curves);
+                    sub_surface.update_curves_and_subsurface(int.clone(), &it_to_ic[&int], is.clone(), curves);
                 }
 
                 // Текущий - граничный, а сосед - обычный. При этом они оба не размеченные.
                 if it_to_ic.contains_key(&cur_it) {
-                    sub_surface.update_curves_and_subsurface(cur_it.clone(), it_to_ic[&cur_it], is.clone(), curves);
+                    sub_surface.update_curves_and_subsurface(cur_it.clone(), &it_to_ic[&cur_it], is.clone(), curves);
                 }
 
                 // Оба обычные и неразмеченные.
@@ -352,13 +427,22 @@ impl SubSurface {
         }
     }
 
-    fn update_curves_and_subsurface(&mut self, it: usize, ic: usize, is: usize, curves: &mut Vec<Curve>) {
-        if curves[ic].is_it_positive(it, &self.from_what_mesh_is_it) {
-            self.indexes_of_positive_curves.insert(ic);
-            curves[ic].indexes_of_positive_sub_surfaces.insert(is);
-        } else {
-            self.indexes_of_negative_curves.insert(ic);
-            curves[ic].indexes_of_negative_sub_surfaces.insert(is);
+    fn update_curves_and_subsurface(
+        &mut self, it: usize, indexes_of_curves: &BTreeSet<usize>,
+        is: usize, curves: &mut Vec<Curve>
+    ) {
+        if indexes_of_curves.len() != 1 {
+            return;
+        }
+
+        for ic in indexes_of_curves {
+            if curves[*ic].is_it_positive(it, &self.from_what_mesh_is_it) {
+                self.indexes_of_positive_curves.insert(*ic);
+                curves[*ic].indexes_of_positive_sub_surfaces.insert(is);
+            } else {
+                self.indexes_of_negative_curves.insert(*ic);
+                curves[*ic].indexes_of_negative_sub_surfaces.insert(is);
+            }
         }
     }
 }
@@ -381,10 +465,9 @@ struct Blocks {
 impl Blocks {
     pub fn new(
         it_to_ss_for_mesh_a: HashMap<usize, Vec<Segment>>,
+        polygons: Vec<Polygon>,
         mesh_a: &Mesh,
         mesh_b: &Mesh,
-        // planar_it_for_a: BTreeSet<usize>,
-        // planar_it_for_b: BTreeSet<usize>
     ) -> Blocks {
         /*
 
@@ -401,6 +484,12 @@ impl Blocks {
         */
 
         if log_enabled!(LogLevel::Info) {
+            let dir_path = "res_of_tests/robust_bool_op/dbg";
+            if Path::new(&dir_path).exists() {
+                fs::remove_dir_all(&dir_path).ok();
+            }
+            fs::create_dir_all(&dir_path).ok();
+
             Blocks::write_mesh(mesh_a.clone(), "retr_a.stl");
             Blocks::write_mesh(mesh_b.clone(), "retr_b.stl");
 
@@ -409,8 +498,24 @@ impl Blocks {
         }
 
         let mut curves: Vec<Curve> = Curve::new_curves(it_to_ss_for_mesh_a, mesh_a, mesh_b);
-
         info!("There were constructed {0} curves.", curves.len());
+
+        if polygons.len() != 0 {
+            let mut planar_curves: Vec<Curve> = Curve::new_curves_from_polygons(polygons, mesh_a, mesh_b);
+            info!("There were constructed {0} planar curves.", planar_curves.len());
+
+            fn exists(curves: &Vec<Curve>, curve: &Curve) -> bool {
+                for c in curves.iter() {
+                    if c == curve {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            planar_curves.retain(|c| !exists(&curves, c));
+            curves.extend(planar_curves);
+        }
 
         let mut sub_surfaces: Vec<SubSurface> = Vec::new();
         SubSurface::add_sub_surfaces(&mut curves, &mut sub_surfaces, mesh_a, mesh_b);
@@ -419,7 +524,7 @@ impl Blocks {
         // println!("mesh_a.len() = {0}", mesh_a.num_of_triangles());
         // println!("mesh_b.len() = {0}", mesh_b.num_of_triangles());
 
-        if log_enabled!(LogLevel::Debug) {
+        if log_enabled!(LogLevel::Info) {
             Blocks::write_sub_surfaces(&sub_surfaces, mesh_a, mesh_b);
         }
 
@@ -429,7 +534,7 @@ impl Blocks {
         let (union, block_union, intersections) =
             Blocks::distinguish_u_and_i(blocks_ui, &sub_surfaces, mesh_a, mesh_b);
 
-        if log_enabled!(LogLevel::Debug) {
+        if log_enabled!(LogLevel::Info) {
             Blocks::write_mesh(union.clone(), "union");
 
             for (i, mesh) in intersections.iter().enumerate() {
@@ -442,7 +547,7 @@ impl Blocks {
             mesh_a, mesh_b, block_union,
         );
 
-        if log_enabled!(LogLevel::Debug) {
+        if log_enabled!(LogLevel::Info) {
             for (i, mesh) in difs_ab.iter().enumerate() {
                 Blocks::write_mesh(mesh.clone(), &format!("dif_ab_{0}", i));
             }
@@ -502,8 +607,11 @@ impl Blocks {
 
     fn write_sub_surfaces(sub_surfaces: &Vec<SubSurface>, mesh_a: &Mesh, mesh_b: &Mesh) {
         for (index, s) in sub_surfaces.iter().enumerate() {
+            //println!("posc = {:?} negc = {:?}", s.indexes_of_positive_curves, s.indexes_of_negative_curves);
+
             let cur_mesh = Blocks::get_mesh(&vec![s.clone()], mesh_a, mesh_b, false, false);
             let output_file_name = format!("res_of_tests/robust_bool_op/dbg/{0}.stl", index);
+
             let mut f = File::create(output_file_name).unwrap();
             //println!("cur_mesh.len()= {0}", cur_mesh.num_of_triangles());
             match cur_mesh.write_stl(&mut f) {
@@ -533,15 +641,18 @@ impl Blocks {
                 continue;
             }
 
-            let mut stack: Vec<usize> = vec![is];
+            let mut stack: BTreeSet<usize> = BTreeSet::new();
+            stack.insert(is);
             let mut block: BTreeSet<usize> = BTreeSet::new();
 
             while !stack.is_empty() {
-                let cur_is: usize = stack.pop().unwrap();
+                let cur_is: usize = stack.iter().next().unwrap().clone();
+                stack.remove(&cur_is);
                 if visited.contains(&cur_is) {
                     continue;
                 }
                 // println!("cur_is = {0}", cur_is);
+
                 block.insert(cur_is.clone());
                 visited.insert(cur_is);
 
@@ -574,6 +685,7 @@ impl Blocks {
                 );
 
                 stack.extend(indexes_of_nearest_ss);
+                // println!("stack = {:?}", stack);
             }
 
             vec_of_blocks.push(block);
@@ -581,6 +693,9 @@ impl Blocks {
 
         // println!("block1 {:?}", vec_of_blocks[0]);
         // println!("block2 {:?}", vec_of_blocks[1]);
+
+        // println!("vec_of_blocks_len = {0}", vec_of_blocks.len());
+        assert!(vec_of_blocks.len() >= 2);
 
         return vec_of_blocks;
     }
@@ -619,6 +734,8 @@ impl Blocks {
         let union = meshes.remove(index_of_the_best);
         let union_block = blocks_ui.remove(index_of_the_best);
 
+        meshes.retain(|m| m.geometry_check());
+
         return (union, union_block, meshes);
     }
 
@@ -633,8 +750,13 @@ impl Blocks {
 
         for block in blocks_difs {
             let outer_part = block.intersection(&block_union);
-            let index_of_ss = outer_part.into_iter().next().unwrap();
+            let opt_index = outer_part.into_iter().next();
+            if opt_index.is_none() {
+                continue;
+            }
+            let index_of_ss = opt_index.unwrap();
             if sub_surfaces[*index_of_ss].from_what_mesh_is_it == EMesh::MeshA {
+
                 let cur_mesh = Blocks::get_mesh_from_block(
                     sub_surfaces,
                     &block, mesh_a, mesh_b,
@@ -643,6 +765,7 @@ impl Blocks {
                 let mut meshes = cur_mesh.split_into_connectivity_components();
                 meshes.retain(|m| m.geometry_check());
                 difs_ab.extend(meshes);
+                // difs_ab.push(cur_mesh);
             } else {
                 let cur_mesh = Blocks::get_mesh_from_block(
                     sub_surfaces, &block, mesh_a, mesh_b,
@@ -651,6 +774,7 @@ impl Blocks {
                 let mut meshes = cur_mesh.split_into_connectivity_components();
                 meshes.retain(|m| m.geometry_check());
                 difs_ba.extend(meshes);
+                // difs_ba.push(cur_mesh);
             }
         }
 
@@ -734,6 +858,8 @@ impl BoolOpResult {
         let mut planar_it_for_a: BTreeSet<usize> = BTreeSet::new();
         let mut planar_it_for_b: BTreeSet<usize> = BTreeSet::new();
 
+        let mut polygons: Vec<Polygon> = Vec::new();
+
 
         let mut it_to_ss_for_a_all: HashMap<usize, Vec<Segment>> = HashMap::new();
         let mut it_to_ss_for_b_all: HashMap<usize, Vec<Segment>> = HashMap::new();
@@ -753,10 +879,13 @@ impl BoolOpResult {
                     planar_it_for_b.insert(index_b.clone());
 
                     let polygon: Polygon = res.get_polygon();
+
                     for s in polygon.get_segments() {
                         add_segment_to_map(&index_a, s.clone(), &mut it_to_ss_for_a_all);
                         add_segment_to_map(&index_b, s, &mut it_to_ss_for_b_all);
                     }
+
+                    polygons.push(polygon);
                 }
 
                 _ => {}
@@ -766,6 +895,8 @@ impl BoolOpResult {
 
         it_to_ss_for_mesh_a.retain(|i, _| !planar_it_for_a.contains(i));
         it_to_ss_for_mesh_b.retain(|i, _| !planar_it_for_b.contains(i));
+
+
 
         if it_to_ss_for_mesh_a.is_empty() && it_to_ss_for_mesh_b.is_empty() {
             return Err("Meshes doesn't intersect each other!");
@@ -788,7 +919,7 @@ impl BoolOpResult {
         let build_blocks_start = PreciseTime::now();
         info!("Building blocks ...");
         let blocks = Blocks::new(
-            it_to_ss_for_mesh_a,
+            it_to_ss_for_mesh_a, polygons,
             &re_triangulated_mesh_a, &re_triangulated_mesh_b,
         );
         info!("Blocks were built in {0} seconds.", build_blocks_start.to(PreciseTime::now()));
@@ -1135,7 +1266,17 @@ mod tests {
         );
     }
 
-
+    #[ignore]
+    #[test]
+    fn test_diplom2() {
+        bool_op_test(
+            "input_for_tests/bone1_rot.stl",
+            "input_for_tests/bone_1_rot_with_hole.stl",
+            12,
+            vec![BoolOpType::Intersection, BoolOpType::Union, BoolOpType::DifferenceAB, BoolOpType::DifferenceBA],
+            true
+        );
+    }
 }
 
 /*
