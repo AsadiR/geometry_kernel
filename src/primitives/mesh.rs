@@ -208,10 +208,12 @@ impl BinaryStlFile {
     /// # Arguments
     ///
     /// * `ts` - A vector of triangles
-    pub fn add_triangles(&mut self, ts : Vec<Triangle>) {
+    pub fn add_triangles(&mut self, ts : Vec<Triangle>) -> Vec<usize> {
+        let mut indexes: Vec<usize> = Vec::new();
         for t in ts {
-            self.add_triangle(t).ok();
+            indexes.push(self.add_triangle(t).unwrap());
         }
+        return indexes;
     }
 
     fn read_point<T: ReadBytesExt>(input: &mut T) -> Result<point::Point> {
@@ -393,7 +395,7 @@ impl BinaryStlFile {
         out: &mut T,
     ) -> Result<()> {
         let start = PreciseTime::now();
-        info!("Writing model ...");
+        // info!("Writing model ...");
 
         //info!("dbg: {:?} : {:?}", self.header.num_triangles as usize, self.triangles.len());
         assert!(self.header.num_triangles as usize == self.index_to_triangle.len());
@@ -417,7 +419,7 @@ impl BinaryStlFile {
         }
 
         let end = PreciseTime::now();
-        info!("<write_stl> is finished in {0} seconds\n", start.to(end));
+        // info!("<write_stl> is finished in {0} seconds\n", start.to(end));
 
         Ok(())
     }
@@ -503,16 +505,33 @@ impl BinaryStlFile {
         return res;
     }
 
+    pub(crate) fn move_triangle(&mut self, index: usize) {
+        let mt: MeshTriangle = self.index_to_triangle.get(&index).unwrap().clone();
+        let move_vec : vector::Vector = mt.normal.clone() * Number::new(0.0000001f64);
+        for ip in mt.ips.iter() {
+            let p_ref: &mut point::Point = self.ip_to_p.get_mut(ip).unwrap();
+
+
+            p_ref.x = &p_ref.x + &move_vec.x;
+            p_ref.y = &p_ref.y + &move_vec.y;
+            p_ref.z = &p_ref.z + &move_vec.z;
+        }
+    }
+
+    pub(crate) fn recalculate_all_normals(&mut self) {
+        for index in self.index_to_triangle.clone().keys() {
+            self.index_to_triangle.get_mut(&index).unwrap().normal = self.get_triangle(*index).calculate_normal();
+        }
+    }
+
     pub(crate) fn find_segment_conjugated_triangles(&self, it: usize) -> Vec<usize> {
         let mut res : Vec<usize> = Vec::new();
 
         for int in self.index_to_triangle[&it].ins.iter() {
             if self.index_to_triangle.contains_key(int) {
                 let number = self.get_number_of_coincident_points(it, *int);
-                if number == 2 {
+                if number >= 2 {
                     res.push(int.clone());
-                } else if number > 2 {
-                    panic!("Something goes wrong!");
                 }
             }
 
@@ -549,7 +568,7 @@ impl BinaryStlFile {
             }
         }
 
-        return true;
+        return self.ip_to_p.len() >= 4;
     }
 
 
@@ -566,6 +585,13 @@ impl BinaryStlFile {
                     if !visited.contains(&extracted_index) {
                         mesh.add_triangle(self.get_triangle(extracted_index)).ok();
                         visited.insert(extracted_index);
+
+                        /*
+                        let sc_its = self.find_segment_conjugated_triangles(extracted_index);
+                        if sc_its.len() == 3 {
+                            to_visit.extend(sc_its);
+                        }
+                        */
                         to_visit.extend(self.get_indexes_of_neighbours(extracted_index));
                     }
                 }

@@ -10,6 +10,10 @@ pub enum TriangulationAlgorithm {
 }
 
 pub fn triangulate_ptree3d(mut t: Triangle, mut ss: Vec<Segment>) -> Vec<Triangle> {
+    if ss.len() == 0 {
+        return vec![t];
+    }
+
     let mut plane: Plane = Plane::new(t.get_normal(), t.get(0));
     let normal_type : NormalType = classify_normal(plane.get_ref_normal());
 

@@ -192,7 +192,7 @@ impl PolygonTreeNode {
         }
     }
 
-
+    // строим дерево вложенных полигонов для передачи в триангуляцию
     pub fn new_trees(t : Triangle, segments : Vec<Segment>) -> Vec<PolygonTreeNode> {
         let mut tc = TriangleContainer::new(t, segments);
         let mut boundary_polygons : Vec<Polygon> = Vec::new();
@@ -213,7 +213,7 @@ impl PolygonTreeNode {
         let mut internal_polygons : Vec<Polygon> = Vec::new();
 
         loop {
-            // is -> internal sement
+            // is -> internal segment
             let o_index_of_is = tc.pop_internal();
             if o_index_of_is.is_none() {
                 break;
@@ -339,6 +339,16 @@ impl TriangleContainer {
         return tc;
     }
 
+    fn update_set(s : &Segment, side : &Segment, set : &mut BTreeSet<PointWrapper>) {
+        if s.org.classify(&side.org, &side.dest) == EPointPosition::Between {
+            set.insert(PointWrapper::new(s.org.clone(), side));
+        }
+
+        if s.dest.classify(&side.org, &side.dest) == EPointPosition::Between {
+            set.insert(PointWrapper::new(s.dest.clone(), side));
+        }
+    }
+
     pub fn pop_boundary(&mut self) -> Option<usize> {
         self.boundary.pop()
     }
@@ -392,7 +402,6 @@ impl TriangleContainer {
         return Some(p);
     }
 
-
     fn add(&mut self, new_s: Segment, is_it_boundary: bool) {
         for s in self.segments.iter() {
             if s == &new_s {
@@ -414,16 +423,6 @@ impl TriangleContainer {
         }
     }
 
-    fn update_set(s : &Segment, side : &Segment, set : &mut BTreeSet<PointWrapper>) {
-        if s.org.classify(&side.org, &side.dest) == EPointPosition::Between {
-            set.insert(PointWrapper::new(s.org.clone(), side));
-        }
-
-        if s.dest.classify(&side.org, &side.dest) == EPointPosition::Between {
-            set.insert(PointWrapper::new(s.dest.clone(), side));
-        }
-    }
-
     fn extract_new_ss(set : &BTreeSet<PointWrapper>) -> Vec<Segment> {
         let mut vec: Vec<&PointWrapper> = Vec::new();
         vec.extend(set);
@@ -441,6 +440,8 @@ impl TriangleContainer {
         return vec_of_ss;
     }
 
+
+    // каждый раз выбираем набиолее "левую" точку.
     fn is_first_better(e1: &EPointPosition, sc1: &Number, e2: &EPointPosition, sc2: &Number) -> bool {
 
         if e2 == &EPointPosition::Right && e1 == &EPointPosition::Left {
@@ -467,7 +468,7 @@ impl TriangleContainer {
             return false;
         }
 
-        assert_ne!(sc1, sc2);
+        //assert_ne!(sc1, sc2);
 
         if e2 == &EPointPosition::Left && e1 == &EPointPosition::Left {
             return sc1 < sc2;
@@ -515,15 +516,18 @@ impl TriangleContainer {
                 &next_segment.org - &next_segment.dest
             };
 
-            //println!("cur_s = {:?}", cur_segment);
-            //println!("saved_s = {:?}", self.segments.get(best_index));
-            //println!("next_s = {:?}", next_segment);
-            // println!("end_point = {:?}", end_point);
+            /*
+            println!("cur_s = {:?}", cur_segment);
+            println!("saved_s = {:?}", self.segments.get(best_index));
+            println!("next_s = {:?}", next_segment);
+            println!("end_point = {:?}", end_point);
+            */
 
             let cur_sc = cur_vec.get_signed_cos2(&next_vec);
 
             if TriangleContainer::is_first_better(&cur_e, &cur_sc, &e, &sc) &&
-                self.point_to_ns.get(&end_point).unwrap().len() >= 2 {
+                self.point_to_ns.get(&end_point).unwrap().len() >= 2
+            {
                 e = cur_e;
                 sc = cur_sc;
                 best_index = ns[i];

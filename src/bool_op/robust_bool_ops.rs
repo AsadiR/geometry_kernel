@@ -465,7 +465,7 @@ struct Blocks {
 impl Blocks {
     pub fn new(
         it_to_ss_for_mesh_a: HashMap<usize, Vec<Segment>>,
-        polygons: Vec<Polygon>,
+        // polygons: Vec<Polygon>,
         mesh_a: &Mesh,
         mesh_b: &Mesh,
     ) -> Blocks {
@@ -482,8 +482,9 @@ impl Blocks {
         Исходя из принципов distinguishing-а нужно задать метки ребрам между subsurface-ами
         По меткам собираем результирующие поверхности.
         */
+        let log_meshes = true;
 
-        if log_enabled!(LogLevel::Info) {
+        if log_enabled!(LogLevel::Info) && log_meshes {
             let dir_path = "res_of_tests/robust_bool_op/dbg";
             if Path::new(&dir_path).exists() {
                 fs::remove_dir_all(&dir_path).ok();
@@ -500,23 +501,6 @@ impl Blocks {
         let mut curves: Vec<Curve> = Curve::new_curves(it_to_ss_for_mesh_a, mesh_a, mesh_b);
         info!("There were constructed {0} curves.", curves.len());
 
-        if polygons.len() != 0 {
-            let mut planar_curves: Vec<Curve> = Curve::new_curves_from_polygons(polygons, mesh_a, mesh_b);
-            info!("There were constructed {0} planar curves.", planar_curves.len());
-
-            fn exists(curves: &Vec<Curve>, curve: &Curve) -> bool {
-                for c in curves.iter() {
-                    if c == curve {
-                        return true;
-                    }
-                }
-                return false;
-            }
-
-            planar_curves.retain(|c| !exists(&curves, c));
-            curves.extend(planar_curves);
-        }
-
         let mut sub_surfaces: Vec<SubSurface> = Vec::new();
         SubSurface::add_sub_surfaces(&mut curves, &mut sub_surfaces, mesh_a, mesh_b);
 
@@ -524,7 +508,7 @@ impl Blocks {
         // println!("mesh_a.len() = {0}", mesh_a.num_of_triangles());
         // println!("mesh_b.len() = {0}", mesh_b.num_of_triangles());
 
-        if log_enabled!(LogLevel::Info) {
+        if log_enabled!(LogLevel::Info) && log_meshes {
             Blocks::write_sub_surfaces(&sub_surfaces, mesh_a, mesh_b);
         }
 
@@ -534,7 +518,7 @@ impl Blocks {
         let (union, block_union, intersections) =
             Blocks::distinguish_u_and_i(blocks_ui, &sub_surfaces, mesh_a, mesh_b);
 
-        if log_enabled!(LogLevel::Info) {
+        if log_enabled!(LogLevel::Info) && log_meshes {
             Blocks::write_mesh(union.clone(), "union");
 
             for (i, mesh) in intersections.iter().enumerate() {
@@ -547,7 +531,7 @@ impl Blocks {
             mesh_a, mesh_b, block_union,
         );
 
-        if log_enabled!(LogLevel::Info) {
+        if log_enabled!(LogLevel::Info) && log_meshes {
             for (i, mesh) in difs_ab.iter().enumerate() {
                 Blocks::write_mesh(mesh.clone(), &format!("dif_ab_{0}", i));
             }
@@ -831,8 +815,24 @@ impl BoolOpResult {
             info!("<BoolOpResult::new> is performing ...\n");
         }
 
-        let mesh_a : Mesh = connectivity_components_for_a.remove(0);
-        let mesh_b : Mesh = connectivity_components_for_b.remove(0);
+        let mut mesh_a : Mesh = connectivity_components_for_a.remove(0);
+        let mut mesh_b : Mesh = connectivity_components_for_b.remove(0);
+
+        fn add_segment_to_map(it: &usize, s: Segment, t_to_ss: &mut HashMap<usize, Vec<Segment>>) {
+            if t_to_ss.contains_key(it) {
+                // повторяться отрезки не могут, так как иначе присутствует самопересечение
+                // однако если мы имеем дело с плоскостным пересечением то могут
+                let vec: &mut Vec<Segment> = t_to_ss.get_mut(it).unwrap();
+                if !vec.contains(&s) {
+                    vec.push(s);
+                }
+            } else {
+                t_to_ss.insert(it.clone(), vec![s]);
+            }
+        }
+
+        let mut it_to_ss_for_mesh_a: HashMap<usize, Vec<Segment>> = HashMap::new();
+        let mut it_to_ss_for_mesh_b: HashMap<usize, Vec<Segment>> = HashMap::new();
 
         let m_x_m_start = PreciseTime::now();
         info!("Intersection of meshes is performing ...");
@@ -843,60 +843,21 @@ impl BoolOpResult {
         let mxm_res_lst = mxm_res.get_res_list();
         info!("There are {0} pairs of intersecting triangles.", mxm_res_lst.len());
 
-        fn add_segment_to_map(it: &usize, s: Segment, t_to_ss: &mut HashMap<usize, Vec<Segment>>) {
-            if t_to_ss.contains_key(it) {
-                // повторяться отрезки не могут, так как иначе присутствует самопересечение
-                t_to_ss.get_mut(it).unwrap().push(s);
-            } else {
-                t_to_ss.insert(it.clone(), vec![s]);
-            }
-        }
-
-        let mut it_to_ss_for_mesh_a: HashMap<usize, Vec<Segment>> = HashMap::new();
-        let mut it_to_ss_for_mesh_b: HashMap<usize, Vec<Segment>> = HashMap::new();
-
-        let mut planar_it_for_a: BTreeSet<usize> = BTreeSet::new();
-        let mut planar_it_for_b: BTreeSet<usize> = BTreeSet::new();
-
-        let mut polygons: Vec<Polygon> = Vec::new();
-
-
-        let mut it_to_ss_for_a_all: HashMap<usize, Vec<Segment>> = HashMap::new();
-        let mut it_to_ss_for_b_all: HashMap<usize, Vec<Segment>> = HashMap::new();
-
-        for (index_a, index_b, res) in  mxm_res_lst{
+        for (index_a, index_b, res) in mxm_res_lst {
             match res.get_info() {
                 InfoTxT::Intersecting => {
                     let segment = res.get_segment();
                     add_segment_to_map(&index_a, segment.clone(), &mut it_to_ss_for_mesh_a);
                     add_segment_to_map(&index_b, segment.clone(), &mut it_to_ss_for_mesh_b);
-                    add_segment_to_map(&index_a, segment.clone(), &mut it_to_ss_for_a_all);
-                    add_segment_to_map(&index_b, segment, &mut it_to_ss_for_b_all);
                 }
 
                 InfoTxT::CoplanarIntersecting => {
-                    planar_it_for_a.insert(index_a.clone());
-                    planar_it_for_b.insert(index_b.clone());
-
-                    let polygon: Polygon = res.get_polygon();
-
-                    for s in polygon.get_segments() {
-                        add_segment_to_map(&index_a, s.clone(), &mut it_to_ss_for_a_all);
-                        add_segment_to_map(&index_b, s, &mut it_to_ss_for_b_all);
-                    }
-
-                    polygons.push(polygon);
+                    return Err("Meshes should not have planar intersections!");
                 }
 
                 _ => {}
-
             }
         }
-
-        it_to_ss_for_mesh_a.retain(|i, _| !planar_it_for_a.contains(i));
-        it_to_ss_for_mesh_b.retain(|i, _| !planar_it_for_b.contains(i));
-
-
 
         if it_to_ss_for_mesh_a.is_empty() && it_to_ss_for_mesh_b.is_empty() {
             return Err("Meshes doesn't intersect each other!");
@@ -906,12 +867,12 @@ impl BoolOpResult {
         info!("Retriangulation is performing ...");
 
         let re_triangulated_mesh_a = BoolOpResult::re_triangulate_mesh(
-            it_to_ss_for_a_all.clone(),
+            it_to_ss_for_mesh_a.clone(),
             &mesh_a
         );
 
         let re_triangulated_mesh_b = BoolOpResult::re_triangulate_mesh(
-            it_to_ss_for_b_all.clone(),
+            it_to_ss_for_mesh_b.clone(),
             &mesh_b
         );
         info!("Retriangulation is finished in {0} seconds.", retr_start.to(PreciseTime::now()));
@@ -919,7 +880,7 @@ impl BoolOpResult {
         let build_blocks_start = PreciseTime::now();
         info!("Building blocks ...");
         let blocks = Blocks::new(
-            it_to_ss_for_mesh_a, polygons,
+            it_to_ss_for_mesh_a,
             &re_triangulated_mesh_a, &re_triangulated_mesh_b,
         );
         info!("Blocks were built in {0} seconds.", build_blocks_start.to(PreciseTime::now()));
@@ -1218,6 +1179,7 @@ mod tests {
         );
     }
 
+    #[ignore]
     #[test]
     fn test_of_cylinders_imposition() {
         bool_op_test(
@@ -1231,6 +1193,7 @@ mod tests {
         );
     }
 
+    #[ignore]
     #[test]
     fn test_of_cube_union() {
         bool_op_test(
@@ -1255,6 +1218,7 @@ mod tests {
         );
     }
 
+    #[ignore]
     #[test]
     fn test_of_inner_cube() {
         bool_op_test(
@@ -1270,9 +1234,49 @@ mod tests {
     #[test]
     fn test_diplom2() {
         bool_op_test(
-            "input_for_tests/bone1_rot.stl",
-            "input_for_tests/bone_1_rot_with_hole.stl",
+            //"input_for_tests/bone1_rot.stl",
+            //"input_for_tests/bone_1_rot_with_hole.stl",
+            //"input_for_tests/cube_in_origin.stl",
+            //"input_for_tests/cube_with_hole.stl",
+            "input_for_tests/cube_with_hole.stl",
+            "input_for_tests/cube2.stl",
             12,
+            vec![BoolOpType::Intersection, BoolOpType::Union, BoolOpType::DifferenceAB, BoolOpType::DifferenceBA],
+            true
+        );
+    }
+
+    #[test]
+    fn test_chew() {
+        bool_op_test(
+            "input_for_tests/челюсть.stl",
+            //"input_for_tests/implant.stl",
+            "input_for_tests/separator.stl",
+            14,
+            vec![BoolOpType::Intersection, BoolOpType::Union, BoolOpType::DifferenceAB, BoolOpType::DifferenceBA],
+            true
+        );
+    }
+
+    #[ignore]
+    #[test]
+    fn test_bone1_bone2() {
+        bool_op_test(
+            "input_for_tests/bone1.stl",
+            "input_for_tests/bone1_part.stl",
+            15,
+            vec![BoolOpType::Intersection, BoolOpType::Union, BoolOpType::DifferenceAB, BoolOpType::DifferenceBA],
+            true
+        );
+    }
+
+
+    #[test]
+    fn test_bone_screw() {
+        bool_op_test(
+            "input_for_tests/bone1.stl",
+            "input_for_tests/little_screw.stl",
+            16,
             vec![BoolOpType::Intersection, BoolOpType::Union, BoolOpType::DifferenceAB, BoolOpType::DifferenceBA],
             true
         );
